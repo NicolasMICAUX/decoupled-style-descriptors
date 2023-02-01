@@ -6,9 +6,9 @@ from SynthesisNetwork import SynthesisNetwork
 from helper import *
 
 
-def update_chosen_writers(writer1, writer2, weight, words):
+def update_chosen_writers(writer1_, writer2_, weight, words):
     net.clamp_mdn = 0
-    chosen_writers = [int(writer1.split(" ")[1]), int(writer2.split(" ")[1])]
+    chosen_writers = [int(writer1_.split(" ")[1]), int(writer2_.split(" ")[1])]
 
     all_loaded_data = []
     for writer_id_ in chosen_writers:
@@ -20,20 +20,20 @@ def update_chosen_writers(writer1, writer2, weight, words):
         mean_global_W = convenience.get_mean_global_W(net, loaded_data_, device)
         writer_mean_Ws.append(mean_global_W.detach())
 
-    return gr.Slider.update(label=f"{writer1} vs. {writer2}"), chosen_writers, writer_mean_Ws, *update_writer_word(
+    return gr.Slider.update(label=f"{writer1_} vs. {writer2_}"), chosen_writers, writer_mean_Ws, *update_writer_word(
         " ".join(words), writer_mean_Ws, all_loaded_data, weight)
 
 
-def update_writer_word(target_word, writer_mean_Ws, all_loaded_data, writer_weight, device="cpu"):
+def update_writer_word(target_word_, writer_mean_Ws, all_loaded_data, writer_weight, device_="cpu"):
     words = []
-    for word in target_word.split(" "):
+    for word in target_word_.split(" "):
         if len(word) > 0:
             words.append(word)
 
     word_Ws = []
     word_Cs = []
     for word in words:
-        writer_Ws, writer_Cs = convenience.get_DSD(net, word, writer_mean_Ws, all_loaded_data, device)
+        writer_Ws, writer_Cs = convenience.get_DSD(net, word, writer_mean_Ws, all_loaded_data, device_)
         word_Ws.append(writer_Ws)
         word_Cs.append(writer_Cs)
 
@@ -89,9 +89,9 @@ def update_char_download(char_svg):
 
 
 # for MDN
-def update_mdn_word(target_word, scale_sd, clamp_mdn):
+def update_mdn_word(target_word_, scale_sd, clamp_mdn):
     mdn_words = []
-    for word in target_word.split(" "):
+    for word in target_word_.split(" "):
         mdn_words.append(word)
 
     all_word_mdn_Ws = []
@@ -119,209 +119,211 @@ def update_mdn_download(mdn_svg):
     return gr.File.update(value="./DSD_add_randomness.svg", visible=True), gr.Button.update(visible=False)
 
 
-device = 'cpu'
-num_samples = 10
+if __name__ == "__main__":
+    device = 'cpu'
+    num_samples = 10
 
-net = SynthesisNetwork(weight_dim=256, num_layers=3).to(device)
+    net = SynthesisNetwork(weight_dim=256, num_layers=3).to(device)
 
-if not torch.cuda.is_available():
-    net.load_state_dict(torch.load('./model/250000.pt', map_location=torch.device(device))["model_state_dict"])
+    if not torch.cuda.is_available():
+        net.load_state_dict(torch.load('./model/250000.pt', map_location=torch.device(device))["model_state_dict"])
 
-dl = DataLoader(num_writer=1, num_samples=10, divider=5.0, datadir='./data/writers')
+    dl = DataLoader(num_writer=1, num_samples=10, divider=5.0, datadir='./data/writers')
 
-writer_options = [5, 14, 15, 16, 17, 22, 25, 80, 120, 137, 147, 151]
-all_loaded_data_DEFAULT = []
-chosen_writers_DEFAULT = [120, 80]
-avail_char = "0 1 2 3 4 5 6 7 8 9 a b c d e f g h i j k l m n o p q r s t u v w x y z A B C D E F G H I J K L M N O P Q R S T U V W X Y Z ! ? \" ' * + - = : ; , . < > \ / [ ] ( ) # $ % &"
-avail_char_list = avail_char.split(" ")
-for writer_id in chosen_writers_DEFAULT:
-    loaded_data = dl.next_batch(TYPE='TRAIN', uid=writer_id, tids=list(range(num_samples)))
-    all_loaded_data_DEFAULT.append(loaded_data)
+    writer_options = [5, 14, 15, 16, 17, 22, 25, 80, 120, 137, 147, 151]
+    all_loaded_data_DEFAULT = []
+    chosen_writers_DEFAULT = [120, 80]
+    avail_char = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!?\"'*+-=:;,.<>\/[]()#$%&"
+    avail_char_list = list(avail_char)
+    for writer_id in chosen_writers_DEFAULT:
+        loaded_data = dl.next_batch(TYPE='TRAIN', uid=writer_id, tids=list(range(num_samples)))
+        all_loaded_data_DEFAULT.append(loaded_data)
 
-default_loaded_data = all_loaded_data_DEFAULT[-1]
-default_mean_global_W = convenience.get_mean_global_W(net, default_loaded_data, device)
+    default_loaded_data = all_loaded_data_DEFAULT[-1]
+    default_mean_global_W = convenience.get_mean_global_W(net, default_loaded_data, device)
 
-# data for writer interpolation
-writer_words_DEFAULT = ["hello", "world"]
-writer_mean_Ws_DEFAULT = []
-writer_all_word_Ws_DEFAULT = []
-writer_all_word_Cs_DEFAULT = []
-writer_weight_DEFAULT = 0.7
-writer_svg_DEFAULT = None
-
-# data for char interpolation
-char_chosen_DEFAULT = ["y", "s"]
-char_mean_global_W_DEFAULT = None
-char_weight_DEFAULT = 0.7
-char_Ws_DEFAULT = default_mean_global_W.reshape(1, 1, convenience.L)
-char_Cs_DEFAULT = None
-char_svg_DEFAULT = None
-
-# # data for MDN
-mdn_words_DEFAULT = ["hello", "world"]
-all_word_mdn_Ws_DEFAULT = None
-all_word_mdn_Cs_DEFAULT = None
-clamp_mdn_DEFAULT = 0.5
-scale_sd_DEFAULT = 1
-mdn_svg_DEFAULT = None
-
-_wrds, writer_all_word_Ws_DEFAULT, writer_all_word_Cs_DEFAULT, _html, _file, _btn, _wt, _svg = update_writer_word(
-    " ".join(writer_words_DEFAULT), writer_mean_Ws_DEFAULT, all_loaded_data_DEFAULT, writer_weight_DEFAULT)
-_sldr, _wrtrs, writer_mean_Ws_DEFAULT, _wrds, _waww, _wawc, _html, _file, _btn, _wt, writer_svg_DEFAULT = update_chosen_writers(
-    f"Writer {chosen_writers_DEFAULT[0]}", f"Writer {chosen_writers_DEFAULT[1]}", writer_weight_DEFAULT,
-    writer_words_DEFAULT)
-
-_wrds, all_word_mdn_Ws_DEFAULT, all_word_mdn_Cs_DEFAULT, _html, _file, _btn, _maxr, _maxs, mdn_svg_DEFAULT = update_mdn_word(
-    " ".join(mdn_words_DEFAULT), scale_sd_DEFAULT, clamp_mdn_DEFAULT)
-_sldr, char_Cs_DEFAULT, _chrs, _html, _file, _btn, _wght, char_svg_DEFAULT = update_blend_chars(*char_chosen_DEFAULT,
-                                                                                                char_weight_DEFAULT,
-                                                                                                char_Ws_DEFAULT)
-
-with gr.Blocks() as demo:
-    all_loaded_data_var = gr.Variable(all_loaded_data_DEFAULT)
-    chosen_writers_var = gr.Variable(chosen_writers_DEFAULT)
     # data for writer interpolation
-    writer_words_var = gr.Variable(writer_words_DEFAULT)
-    writer_mean_Ws_var = gr.Variable(writer_mean_Ws_DEFAULT)
-    writer_all_word_Ws_var = gr.Variable([e.detach() for e in writer_all_word_Ws_DEFAULT])
-    writer_all_word_Cs_var = gr.Variable([e.detach() for e in writer_all_word_Cs_DEFAULT])
-    writer_weight_var = gr.Variable(writer_weight_DEFAULT)
-    writer_svg_var = gr.Variable(writer_svg_DEFAULT)
+    writer_words_DEFAULT = ["hello", "world"]
+    writer_mean_Ws_DEFAULT = []
+    writer_weight_DEFAULT = 0.7
+
     # data for char interpolation
-    char_chosen_var = gr.Variable(char_chosen_DEFAULT)
-    char_mean_global_W_var = gr.Variable(char_mean_global_W_DEFAULT)
-    char_weight_var = gr.Variable(char_weight_DEFAULT)
-    char_Ws_var = gr.Variable(char_Ws_DEFAULT.detach())
-    char_Cs_var = gr.Variable(char_Cs_DEFAULT.detach())
-    char_svg_var = gr.Variable(char_svg_DEFAULT)
+    char_chosen_DEFAULT = ["y", "s"]
+    char_mean_global_W_DEFAULT = None
+    char_weight_DEFAULT = 0.7
+    char_Ws_DEFAULT = default_mean_global_W.reshape(1, 1, convenience.L)
+
     # # data for MDN
-    mdn_words_var = gr.Variable(mdn_words_DEFAULT)
-    all_word_mdn_Ws_var = gr.Variable([e.detach() for e in all_word_mdn_Ws_DEFAULT])
-    all_word_mdn_Cs_var = gr.Variable([e.detach() for e in all_word_mdn_Cs_DEFAULT])
-    clamp_mdn_var = gr.Variable(clamp_mdn_DEFAULT)
-    scale_sd_var = gr.Variable(scale_sd_DEFAULT)
-    mdn_svg_var = gr.Variable(mdn_svg_DEFAULT)
+    mdn_words_DEFAULT = ["hello", "world"]
+    clamp_mdn_DEFAULT = 0.5
+    scale_sd_DEFAULT = 1
 
-    with gr.Tabs():
-        with gr.TabItem("Blend Writers"):
-            target_word = gr.Textbox(label="Target Word", value=" ".join(writer_words_DEFAULT), max_lines=1)
-            with gr.Row():
-                left_ratio_options = ["Style " + str(id) for i, id in enumerate(writer_options) if i % 2 == 0]
-                right_ratio_options = ["Style " + str(id) for i, id in enumerate(writer_options) if i % 2 == 1]
-                with gr.Column():
-                    writer1 = gr.Radio(left_ratio_options, value="Style 120", label="Style for first writer")
-                with gr.Column():
-                    writer2 = gr.Radio(right_ratio_options, value="Style 80", label="Style for second writer")
-            with gr.Row():
-                writer_slider = gr.Slider(0, 1, value=writer_weight_DEFAULT, label="Style 120 vs. Style 80")
-            with gr.Row():
-                writer_default_image = update_writer_slider(writer_weight_DEFAULT, writer_words_DEFAULT,
-                                                            writer_all_word_Ws_DEFAULT, writer_all_word_Cs_DEFAULT)
-                writer_output = gr.HTML(writer_default_image[0]["value"])
-            with gr.Row():
-                writer_download_btn = gr.Button("Save to SVG file")
-                writer_download_btn.style(full_width="true")
-                writer_download = gr.File(interactive=False, show_label=False, visible=False)
+    # todo : readability of those functions is bad
+    _, writer_all_word_Ws_DEFAULT, writer_all_word_Cs_DEFAULT, _, _, _, _, _svg = update_writer_word(
+        " ".join(writer_words_DEFAULT), writer_mean_Ws_DEFAULT, all_loaded_data_DEFAULT, writer_weight_DEFAULT)
+    _, _wrtrs, writer_mean_Ws_DEFAULT, _, _waww, _wawc, _, _, _, _wt, writer_svg_DEFAULT = update_chosen_writers(
+        f"Writer {chosen_writers_DEFAULT[0]}", f"Writer {chosen_writers_DEFAULT[1]}", writer_weight_DEFAULT,
+        writer_words_DEFAULT)
 
-            writer_slider.change(fn=update_writer_slider,
-                                 inputs=[writer_slider, writer_words_var, writer_all_word_Ws_var,
-                                         writer_all_word_Cs_var],
-                                 outputs=[writer_output, writer_download, writer_download_btn, writer_weight_var,
-                                          writer_svg_var], show_progress=False)
-            target_word.submit(fn=update_writer_word,
-                               inputs=[target_word, writer_mean_Ws_var, all_loaded_data_var, writer_weight_var],
-                               outputs=[writer_words_var, writer_all_word_Ws_var, writer_all_word_Cs_var, writer_output,
-                                        writer_download, writer_download_btn, writer_weight_var, writer_svg_var],
-                               show_progress=False)
-            writer1.change(fn=update_chosen_writers,
-                           inputs=[writer1, writer2, writer_weight_var, writer_words_var],
-                           outputs=[writer_slider, chosen_writers_var, writer_mean_Ws_var, writer_words_var,
-                                    writer_all_word_Ws_var, writer_all_word_Cs_var, writer_output, writer_download,
-                                    writer_download_btn, writer_weight_var, writer_svg_var])
-            writer2.change(fn=update_chosen_writers,
-                           inputs=[writer1, writer2, writer_weight_var, writer_words_var],
-                           outputs=[writer_slider, chosen_writers_var, writer_mean_Ws_var, writer_words_var,
-                                    writer_all_word_Ws_var, writer_all_word_Cs_var, writer_output, writer_download,
-                                    writer_download_btn, writer_weight_var, writer_svg_var])
-            writer_download_btn.click(fn=update_writer_download,
-                                      inputs=[writer_svg_var],
-                                      outputs=[writer_download, writer_download_btn])
+    _wrds, all_word_mdn_Ws_DEFAULT, all_word_mdn_Cs_DEFAULT, _, _, _, _maxr, _maxs, mdn_svg_DEFAULT = update_mdn_word(
+        " ".join(mdn_words_DEFAULT), scale_sd_DEFAULT, clamp_mdn_DEFAULT)
+    _sldr, char_Cs_DEFAULT, _chrs, _html, _file, _btn, _wght, char_svg_DEFAULT = update_blend_chars(
+        *char_chosen_DEFAULT,
+        char_weight_DEFAULT,
+        char_Ws_DEFAULT)
 
-        with gr.TabItem("Blend Characters"):
-            with gr.Row():
-                with gr.Column():
-                    char1 = gr.Dropdown(choices=avail_char_list, value=char_chosen_DEFAULT[0], label="Character 1")
-                with gr.Column():
-                    char2 = gr.Dropdown(choices=avail_char_list, value=char_chosen_DEFAULT[1], label="Character 2")
-            with gr.Row():
-                char_slider = gr.Slider(0, 1, value=char_weight_DEFAULT,
-                                        label=f"'{char_chosen_DEFAULT[0]}' vs. '{char_chosen_DEFAULT[1]}'")
-            with gr.Row():
-                char_default_image = update_char_slider(char_weight_DEFAULT, char_Ws_DEFAULT, char_Cs_DEFAULT,
-                                                        char_chosen_DEFAULT)
-                char_output = gr.HTML(char_default_image[0]["value"])
-            with gr.Row():
-                char_download_btn = gr.Button("Save to SVG file")
-                char_download_btn.style(full_width="true")
-                char_download = gr.File(interactive=False, show_label=False, visible=False)
+    with gr.Blocks() as demo:
+        all_loaded_data_var = gr.Variable(all_loaded_data_DEFAULT)
+        chosen_writers_var = gr.Variable(chosen_writers_DEFAULT)
+        # todo : code duplication here
+        # data for writer interpolation
+        writer_words_var = gr.Variable(writer_words_DEFAULT)
+        writer_mean_Ws_var = gr.Variable(writer_mean_Ws_DEFAULT)
+        writer_all_word_Ws_var = gr.Variable([e.detach() for e in writer_all_word_Ws_DEFAULT])
+        writer_all_word_Cs_var = gr.Variable([e.detach() for e in writer_all_word_Cs_DEFAULT])
+        writer_weight_var = gr.Variable(writer_weight_DEFAULT)
+        writer_svg_var = gr.Variable(writer_svg_DEFAULT)
+        # data for char interpolation
+        char_chosen_var = gr.Variable(char_chosen_DEFAULT)
+        char_mean_global_W_var = gr.Variable(char_mean_global_W_DEFAULT)
+        char_weight_var = gr.Variable(char_weight_DEFAULT)
+        char_Ws_var = gr.Variable(char_Ws_DEFAULT.detach())
+        char_Cs_var = gr.Variable(char_Cs_DEFAULT.detach())
+        char_svg_var = gr.Variable(char_svg_DEFAULT)
+        # data for MDN
+        mdn_words_var = gr.Variable(mdn_words_DEFAULT)
+        all_word_mdn_Ws_var = gr.Variable([e.detach() for e in all_word_mdn_Ws_DEFAULT])
+        all_word_mdn_Cs_var = gr.Variable([e.detach() for e in all_word_mdn_Cs_DEFAULT])
+        clamp_mdn_var = gr.Variable(clamp_mdn_DEFAULT)
+        scale_sd_var = gr.Variable(scale_sd_DEFAULT)
+        mdn_svg_var = gr.Variable(mdn_svg_DEFAULT)
 
-            char_slider.change(fn=update_char_slider,
-                               inputs=[char_slider, char_Ws_var, char_Cs_var, char_chosen_var],
-                               outputs=[char_output, char_download, char_download_btn, char_weight_var, char_svg_var],
-                               show_progress=False)
+        with gr.Tabs():
+            with gr.TabItem("Blend Writers"):
+                target_word = gr.Textbox(label="Target Word", value=" ".join(writer_words_DEFAULT), max_lines=1)
+                with gr.Row():
+                    left_ratio_options = ["Style " + str(id) for i, id in enumerate(writer_options) if i % 2 == 0]
+                    right_ratio_options = ["Style " + str(id) for i, id in enumerate(writer_options) if i % 2 == 1]
+                    with gr.Column():
+                        writer1 = gr.Radio(left_ratio_options, value="Style 120", label="Style for first writer")
+                    with gr.Column():
+                        writer2 = gr.Radio(right_ratio_options, value="Style 80", label="Style for second writer")
+                with gr.Row():
+                    writer_slider = gr.Slider(0, 1, value=writer_weight_DEFAULT, label="Style 120 vs. Style 80")
+                with gr.Row():
+                    writer_default_image = update_writer_slider(writer_weight_DEFAULT, writer_words_DEFAULT,
+                                                                writer_all_word_Ws_DEFAULT, writer_all_word_Cs_DEFAULT)
+                    writer_output = gr.HTML(writer_default_image[0]["value"])
+                # todo : code duplication here
+                with gr.Row():
+                    writer_download_btn = gr.Button("Save to SVG file")
+                    writer_download_btn.style(full_width="true")
+                    writer_download = gr.File(interactive=False, show_label=False, visible=False)
 
-            char1.change(fn=update_blend_chars,
-                         inputs=[char1, char2, char_weight_var, char_Ws_var],
-                         outputs=[char_slider, char_Cs_var, char_chosen_var, char_output, char_download,
-                                  char_download_btn, char_weight_var, char_svg_var])
-            char2.change(fn=update_blend_chars,
-                         inputs=[char1, char2, char_weight_var, char_Ws_var],
-                         outputs=[char_slider, char_Cs_var, char_chosen_var, char_output, char_download,
-                                  char_download_btn, char_weight_var, char_svg_var])
+                writer_slider.change(fn=update_writer_slider,
+                                     inputs=[writer_slider, writer_words_var, writer_all_word_Ws_var,
+                                             writer_all_word_Cs_var],
+                                     outputs=[writer_output, writer_download, writer_download_btn, writer_weight_var,
+                                              writer_svg_var], show_progress=False)
+                target_word.submit(fn=update_writer_word,
+                                   inputs=[target_word, writer_mean_Ws_var, all_loaded_data_var, writer_weight_var],
+                                   outputs=[writer_words_var, writer_all_word_Ws_var, writer_all_word_Cs_var,
+                                            writer_output,
+                                            writer_download, writer_download_btn, writer_weight_var, writer_svg_var],
+                                   show_progress=False)
+                writer1.change(fn=update_chosen_writers,
+                               inputs=[writer1, writer2, writer_weight_var, writer_words_var],
+                               outputs=[writer_slider, chosen_writers_var, writer_mean_Ws_var, writer_words_var,
+                                        writer_all_word_Ws_var, writer_all_word_Cs_var, writer_output, writer_download,
+                                        writer_download_btn, writer_weight_var, writer_svg_var])
+                writer2.change(fn=update_chosen_writers,
+                               inputs=[writer1, writer2, writer_weight_var, writer_words_var],
+                               outputs=[writer_slider, chosen_writers_var, writer_mean_Ws_var, writer_words_var,
+                                        writer_all_word_Ws_var, writer_all_word_Cs_var, writer_output, writer_download,
+                                        writer_download_btn, writer_weight_var, writer_svg_var])
+                writer_download_btn.click(fn=update_writer_download,
+                                          inputs=[writer_svg_var],
+                                          outputs=[writer_download, writer_download_btn])
 
-            char_download_btn.click(fn=update_char_download,
-                                    inputs=[char_svg_var],
-                                    outputs=[char_download, char_download_btn], show_progress=True)
+            with gr.TabItem("Blend Characters"):
+                with gr.Row():
+                    with gr.Column():
+                        char1 = gr.Dropdown(choices=avail_char_list, value=char_chosen_DEFAULT[0], label="Character 1")
+                    with gr.Column():
+                        char2 = gr.Dropdown(choices=avail_char_list, value=char_chosen_DEFAULT[1], label="Character 2")
+                with gr.Row():
+                    char_slider = gr.Slider(0, 1, value=char_weight_DEFAULT,
+                                            label=f"'{char_chosen_DEFAULT[0]}' vs. '{char_chosen_DEFAULT[1]}'")
+                with gr.Row():
+                    char_default_image = update_char_slider(char_weight_DEFAULT, char_Ws_DEFAULT, char_Cs_DEFAULT,
+                                                            char_chosen_DEFAULT)
+                    char_output = gr.HTML(char_default_image[0]["value"])
+                with gr.Row():
+                    char_download_btn = gr.Button("Save to SVG file")
+                    char_download_btn.style(full_width="true")
+                    char_download = gr.File(interactive=False, show_label=False, visible=False)
 
-        with gr.TabItem("Add Randomness"):
-            mdn_word = gr.Textbox(label="Target Word", value=" ".join(mdn_words_DEFAULT), max_lines=1)
-            with gr.Row():
-                with gr.Column():
-                    max_rand = gr.Slider(0, 1, value=clamp_mdn_DEFAULT, label="Maximum Randomness")
-                with gr.Column():
-                    scale_rand = gr.Slider(0, 3, value=scale_sd_DEFAULT, label="Scale of Randomness")
-            with gr.Row():
-                mdn_sample_button = gr.Button(value="Resample")
-            with gr.Row():
-                default_im = sample_mdn(scale_sd_DEFAULT, clamp_mdn_DEFAULT, mdn_words_DEFAULT, all_word_mdn_Ws_DEFAULT,
-                                        all_word_mdn_Cs_DEFAULT)
-                mdn_output = gr.HTML(default_im[0]["value"])
-            with gr.Row():
-                randomness_download_btn = gr.Button("Save to SVG file")
-                randomness_download = gr.File(interactive=False, show_label=False, visible=False)
+                char_slider.change(fn=update_char_slider,
+                                   inputs=[char_slider, char_Ws_var, char_Cs_var, char_chosen_var],
+                                   outputs=[char_output, char_download, char_download_btn, char_weight_var,
+                                            char_svg_var],
+                                   show_progress=False)
 
-            max_rand.change(fn=sample_mdn,
-                            inputs=[scale_rand, max_rand, mdn_words_var, all_word_mdn_Ws_var, all_word_mdn_Cs_var],
-                            outputs=[mdn_output, randomness_download, randomness_download_btn, clamp_mdn_var,
-                                     scale_sd_var, mdn_svg_var], show_progress=False)
-            scale_rand.change(fn=sample_mdn,
-                              inputs=[scale_rand, max_rand, mdn_words_var, all_word_mdn_Ws_var, all_word_mdn_Cs_var],
-                              outputs=[mdn_output, randomness_download, randomness_download_btn, clamp_mdn_var,
-                                       scale_sd_var, mdn_svg_var], show_progress=False)
-            mdn_sample_button.click(fn=sample_mdn,
-                                    inputs=[scale_rand, max_rand, mdn_words_var, all_word_mdn_Ws_var,
-                                            all_word_mdn_Cs_var],
-                                    outputs=[mdn_output, randomness_download, randomness_download_btn, clamp_mdn_var,
-                                             scale_sd_var, mdn_svg_var], show_progress=False)
+                char1.change(fn=update_blend_chars,
+                             inputs=[char1, char2, char_weight_var, char_Ws_var],
+                             outputs=[char_slider, char_Cs_var, char_chosen_var, char_output, char_download,
+                                      char_download_btn, char_weight_var, char_svg_var])
+                char2.change(fn=update_blend_chars,
+                             inputs=[char1, char2, char_weight_var, char_Ws_var],
+                             outputs=[char_slider, char_Cs_var, char_chosen_var, char_output, char_download,
+                                      char_download_btn, char_weight_var, char_svg_var])
 
-            mdn_word.submit(fn=update_mdn_word,
-                            inputs=[mdn_word, scale_sd_var, clamp_mdn_var],
-                            outputs=[mdn_words_var, all_word_mdn_Ws_var, all_word_mdn_Cs_var, mdn_output,
-                                     randomness_download, randomness_download_btn, clamp_mdn_var, scale_sd_var,
-                                     mdn_svg_var], show_progress=False)
+                char_download_btn.click(fn=update_char_download,
+                                        inputs=[char_svg_var],
+                                        outputs=[char_download, char_download_btn], show_progress=True)
 
-            randomness_download_btn.click(fn=update_mdn_download,
-                                          inputs=[mdn_svg_var],
-                                          outputs=[randomness_download, randomness_download_btn])
-            randomness_download_btn.style(full_width="true")
-demo.launch()
+            with gr.TabItem("Add Randomness"):
+                mdn_word = gr.Textbox(label="Target Word", value=" ".join(mdn_words_DEFAULT), max_lines=1)
+                with gr.Row():
+                    with gr.Column():
+                        max_rand = gr.Slider(0, 1, value=clamp_mdn_DEFAULT, label="Maximum Randomness")
+                    with gr.Column():
+                        scale_rand = gr.Slider(0, 3, value=scale_sd_DEFAULT, label="Scale of Randomness")
+                with gr.Row():
+                    mdn_sample_button = gr.Button(value="Resample")
+                with gr.Row():
+                    default_im = sample_mdn(scale_sd_DEFAULT, clamp_mdn_DEFAULT, mdn_words_DEFAULT,
+                                            all_word_mdn_Ws_DEFAULT,
+                                            all_word_mdn_Cs_DEFAULT)
+                    mdn_output = gr.HTML(default_im[0]["value"])
+                with gr.Row():
+                    randomness_download_btn = gr.Button("Save to SVG file")
+                    randomness_download = gr.File(interactive=False, show_label=False, visible=False)
+
+                max_rand.change(fn=sample_mdn,
+                                inputs=[scale_rand, max_rand, mdn_words_var, all_word_mdn_Ws_var, all_word_mdn_Cs_var],
+                                outputs=[mdn_output, randomness_download, randomness_download_btn, clamp_mdn_var,
+                                         scale_sd_var, mdn_svg_var], show_progress=False)
+                scale_rand.change(fn=sample_mdn,
+                                  inputs=[scale_rand, max_rand, mdn_words_var, all_word_mdn_Ws_var,
+                                          all_word_mdn_Cs_var],
+                                  outputs=[mdn_output, randomness_download, randomness_download_btn, clamp_mdn_var,
+                                           scale_sd_var, mdn_svg_var], show_progress=False)
+                mdn_sample_button.click(fn=sample_mdn,
+                                        inputs=[scale_rand, max_rand, mdn_words_var, all_word_mdn_Ws_var,
+                                                all_word_mdn_Cs_var],
+                                        outputs=[mdn_output, randomness_download, randomness_download_btn,
+                                                 clamp_mdn_var,
+                                                 scale_sd_var, mdn_svg_var], show_progress=False)
+
+                mdn_word.submit(fn=update_mdn_word,
+                                inputs=[mdn_word, scale_sd_var, clamp_mdn_var],
+                                outputs=[mdn_words_var, all_word_mdn_Ws_var, all_word_mdn_Cs_var, mdn_output,
+                                         randomness_download, randomness_download_btn, clamp_mdn_var, scale_sd_var,
+                                         mdn_svg_var], show_progress=False)
+
+                randomness_download_btn.click(fn=update_mdn_download,
+                                              inputs=[mdn_svg_var],
+                                              outputs=[randomness_download, randomness_download_btn])
+                randomness_download_btn.style(full_width="true")
+    demo.launch()
