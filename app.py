@@ -6,18 +6,18 @@ from SynthesisNetwork import SynthesisNetwork
 from helper import *
 
 
-def update_chosen_writers(writer1, writer2, weight, words, all_loaded_data):
+def update_chosen_writers(writer1, writer2, weight, words):
     net.clamp_mdn = 0
     chosen_writers = [int(writer1.split(" ")[1]), int(writer2.split(" ")[1])]
 
     all_loaded_data = []
-    for writer_id in chosen_writers:
-        loaded_data = dl.next_batch(TYPE='TRAIN', uid=writer_id, tids=list(range(num_samples)))
-        all_loaded_data.append(loaded_data)
+    for writer_id_ in chosen_writers:
+        loaded_data_ = dl.next_batch(TYPE='TRAIN', uid=writer_id_, tids=list(range(num_samples)))
+        all_loaded_data.append(loaded_data_)
 
     writer_mean_Ws = []
-    for loaded_data in all_loaded_data:
-        mean_global_W = convenience.get_mean_global_W(net, loaded_data, device)
+    for loaded_data_ in all_loaded_data:
+        mean_global_W = convenience.get_mean_global_W(net, loaded_data_, device)
         writer_mean_Ws.append(mean_global_W.detach())
 
     return gr.Slider.update(label=f"{writer1} vs. {writer2}"), chosen_writers, writer_mean_Ws, *update_writer_word(
@@ -169,7 +169,7 @@ _wrds, writer_all_word_Ws_DEFAULT, writer_all_word_Cs_DEFAULT, _html, _file, _bt
     " ".join(writer_words_DEFAULT), writer_mean_Ws_DEFAULT, all_loaded_data_DEFAULT, writer_weight_DEFAULT)
 _sldr, _wrtrs, writer_mean_Ws_DEFAULT, _wrds, _waww, _wawc, _html, _file, _btn, _wt, writer_svg_DEFAULT = update_chosen_writers(
     f"Writer {chosen_writers_DEFAULT[0]}", f"Writer {chosen_writers_DEFAULT[1]}", writer_weight_DEFAULT,
-    writer_words_DEFAULT, all_loaded_data_DEFAULT)
+    writer_words_DEFAULT)
 
 _wrds, all_word_mdn_Ws_DEFAULT, all_word_mdn_Cs_DEFAULT, _html, _file, _btn, _maxr, _maxs, mdn_svg_DEFAULT = update_mdn_word(
     " ".join(mdn_words_DEFAULT), scale_sd_DEFAULT, clamp_mdn_DEFAULT)
@@ -234,12 +234,12 @@ with gr.Blocks() as demo:
                                         writer_download, writer_download_btn, writer_weight_var, writer_svg_var],
                                show_progress=False)
             writer1.change(fn=update_chosen_writers,
-                           inputs=[writer1, writer2, writer_weight_var, writer_words_var, all_loaded_data_var],
+                           inputs=[writer1, writer2, writer_weight_var, writer_words_var],
                            outputs=[writer_slider, chosen_writers_var, writer_mean_Ws_var, writer_words_var,
                                     writer_all_word_Ws_var, writer_all_word_Cs_var, writer_output, writer_download,
                                     writer_download_btn, writer_weight_var, writer_svg_var])
             writer2.change(fn=update_chosen_writers,
-                           inputs=[writer1, writer2, writer_weight_var, writer_words_var, all_loaded_data_var],
+                           inputs=[writer1, writer2, writer_weight_var, writer_words_var],
                            outputs=[writer_slider, chosen_writers_var, writer_mean_Ws_var, writer_words_var,
                                     writer_all_word_Ws_var, writer_all_word_Cs_var, writer_output, writer_download,
                                     writer_download_btn, writer_weight_var, writer_svg_var])
