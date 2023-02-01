@@ -7,7 +7,7 @@ import torch
 np.random.seed(0)
 
 
-class DataLoader():
+class DataLoader:
     def __init__(self, num_writer=2, num_samples=5, divider=10.0, datadir='./data/writers'):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.num_writer = num_writer
@@ -17,7 +17,9 @@ class DataLoader():
         print('self.datadir : ', self.datadir)
         self.total_writers = len([name for name in os.listdir(datadir)])
 
-    def next_batch(self, TYPE='TRAIN', uid=-1, tids=[]):
+    def next_batch(self, TYPE='TRAIN', uid=-1, tids=None):
+        if tids is None:
+            tids = []
         all_sentence_level_stroke_in = []
         all_sentence_level_stroke_out = []
         all_sentence_level_stroke_length = []

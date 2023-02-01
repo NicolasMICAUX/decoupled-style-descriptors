@@ -11,8 +11,8 @@ from config.GlobalVariables import *
 
 
 def preprocess_dataset(data_dir, resample=20, pred_start=1):
-    def reformat_raw_data(raw_data, pred_start):
-        if pred_start == 1:
+    def reformat_raw_data(raw_data, pred_start_):
+        if pred_start_ == 1:
             tmp = np.concatenate([[[0, 500, 0]], raw_data], 0)
             tmp = tmp[1:] - tmp[:-1]
             tmp[1:, 2] = raw_data[:-1, 2]
@@ -44,7 +44,7 @@ def preprocess_dataset(data_dir, resample=20, pred_start=1):
             if f'{data_dir}/{writer_id}/{sentence_id}' not in prohibits:
                 sentence_raw_points = raw_points
                 sentence_raw_points[:, 0] -= sentence_raw_points[0, 0]
-                sentence_stroke_in, sentence_stroke_out = reformat_raw_data(sentence_raw_points, pred_start=pred_start)
+                sentence_stroke_in, sentence_stroke_out = reformat_raw_data(sentence_raw_points, pred_start_=pred_start)
 
                 split_char_ids = [i for i, c in enumerate(sentence_text) if c == ' ']
 
@@ -92,7 +92,7 @@ def preprocess_dataset(data_dir, resample=20, pred_start=1):
                         character_raw_points[:, 0] -= character_raw_points[0, 0]
                         character_level_raw_stroke.append(character_raw_points)
                         character_stroke_in, character_stroke_out = reformat_raw_data(character_raw_points,
-                                                                                      pred_start=pred_start)
+                                                                                      pred_start_=pred_start)
                         character_level_stroke_in.append(character_stroke_in)
                         character_level_stroke_out.append(character_stroke_out)
                         term = np.zeros([len(character_raw_points)])
@@ -111,7 +111,7 @@ def preprocess_dataset(data_dir, resample=20, pred_start=1):
                         assert (np.sum(word_term) == len(word))
                         word_raw_points[:, 0] -= word_raw_points[0, 0]
                         word_level_raw_stroke.append(word_raw_points)
-                        word_stroke_in, word_stroke_out = reformat_raw_data(word_raw_points, pred_start=pred_start)
+                        word_stroke_in, word_stroke_out = reformat_raw_data(word_raw_points, pred_start_=pred_start)
                         word_level_stroke_in.append(word_stroke_in)
                         word_level_stroke_out.append(word_stroke_out)
                         word_level_term.append(word_term)
@@ -141,7 +141,7 @@ def preprocess_dataset(data_dir, resample=20, pred_start=1):
                 word_term[0] = 0
                 assert (np.sum(word_term) == len(word))
                 word_level_raw_stroke.append(word_raw_points)
-                word_stroke_in, word_stroke_out = reformat_raw_data(word_raw_points, pred_start=pred_start)
+                word_stroke_in, word_stroke_out = reformat_raw_data(word_raw_points, pred_start_=pred_start)
                 word_level_stroke_in.append(word_stroke_in)
                 word_level_stroke_out.append(word_stroke_out)
                 word_level_term.append(word_term)
@@ -238,7 +238,7 @@ def draw_commands(commands):
 
 def draw_points(raw_points, character_labels):
     [w, h, _] = np.max(raw_points, 0)
-    im = Image.new("RGB", [int(w) + 100, int(h) + 100])
+    im = Image.new("RGB", (int(w) + 100, int(h) + 100))
     dr = ImageDraw.Draw(im)
 
     colors = np.random.randint(0, 255, (len(character_labels[0]), 3))
