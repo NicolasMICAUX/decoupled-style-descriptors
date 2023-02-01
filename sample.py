@@ -165,7 +165,7 @@ def main(params):
 						word_Wc_rec_TYPE_D.append(TYPE_D_out[-1])
 					TYPE_D_REF.append(all_W_c[segment_batch_id][-1])
 			WC_	= torch.stack(word_Wc_rec_TYPE_D)
-			tmp_commands, res = net.sample_from_w_fix(WC_, target_word)
+			tmp_commands, res = net.sample_from_w_fix(WC_)
 			current_id = current_id + res
 			if len(all_commands) == 0:
 				all_commands.append(tmp_commands)
