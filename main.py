@@ -1,5 +1,8 @@
-# python -u main.py --divider 5.0 --weight_dim 256 --sample 5 --device 0 --num_layers 3 --num_writer 1 --lr 0.001 --VALIDATION 1 --datadir 2 --TYPE_B 0 --TYPE_C 0
-
+"""
+Example usage:
+`python -u main.py --divider 5.0 --weight_dim 256 --sample 5 --device 0 --num_layers 3 --num_writer 1 --lr 0.001
+--VALIDATION 1 --datadir 2 --TYPE_B 0 --TYPE_C 0`
+"""
 import argparse
 import os
 
@@ -25,7 +28,6 @@ def main(params):
     num_layers = params.num_layers
     num_writer = params.num_writer
     lr = params.lr
-    no_char = params.no_char
 
     datadir = './data/writers'
 
@@ -111,7 +113,7 @@ def main(params):
 
     optimizer = optim.Adam(net.parameters(), lr=lr)
     step_size = int(10000 / (num_writer * num_samples))
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.99)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.99)  # todo : not used
 
     if LOAD_FROM_CHECKPOINT:
         checkpoints = os.listdir("./model")
@@ -187,7 +189,9 @@ def main(params):
             writer_sentence.add_scalar('Loss/mean_W_consistency_loss', mean_sentence_W_consistency_loss, timestep)
             if ORIGINAL:
                 writer_sentence.add_scalar('Loss/mean_ORIGINAL_loss',
-                                           mean_ORIGINAL_sentence_termination_loss + mean_ORIGINAL_sentence_loc_reconstruct_loss + mean_ORIGINAL_sentence_touch_reconstruct_loss,
+                                           mean_ORIGINAL_sentence_termination_loss +
+                                           mean_ORIGINAL_sentence_loc_reconstruct_loss +
+                                           mean_ORIGINAL_sentence_touch_reconstruct_loss,
                                            timestep)
                 writer_sentence.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss',
                                            mean_ORIGINAL_sentence_termination_loss, timestep)
@@ -197,7 +201,9 @@ def main(params):
                                            mean_ORIGINAL_sentence_touch_reconstruct_loss, timestep)
             if TYPE_A:
                 writer_sentence.add_scalar('Loss/mean_TYPE_A_loss',
-                                           mean_TYPE_A_sentence_termination_loss + mean_TYPE_A_sentence_loc_reconstruct_loss + mean_TYPE_A_sentence_touch_reconstruct_loss,
+                                           mean_TYPE_A_sentence_termination_loss +
+                                           mean_TYPE_A_sentence_loc_reconstruct_loss +
+                                           mean_TYPE_A_sentence_touch_reconstruct_loss,
                                            timestep)
                 writer_sentence.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss', mean_TYPE_A_sentence_termination_loss,
                                            timestep)
@@ -209,7 +215,9 @@ def main(params):
                                            mean_TYPE_A_sentence_WC_reconstruct_loss, timestep)
             if TYPE_B:
                 writer_sentence.add_scalar('Loss/mean_TYPE_B_loss',
-                                           mean_TYPE_B_sentence_termination_loss + mean_TYPE_B_sentence_loc_reconstruct_loss + mean_TYPE_B_sentence_touch_reconstruct_loss,
+                                           mean_TYPE_B_sentence_termination_loss +
+                                           mean_TYPE_B_sentence_loc_reconstruct_loss +
+                                           mean_TYPE_B_sentence_touch_reconstruct_loss,
                                            timestep)
                 writer_sentence.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss', mean_TYPE_B_sentence_termination_loss,
                                            timestep)
@@ -236,7 +244,9 @@ def main(params):
 
             if ORIGINAL:
                 writer_word.add_scalar('Loss/mean_ORIGINAL_loss',
-                                       mean_ORIGINAL_word_termination_loss + mean_ORIGINAL_word_loc_reconstruct_loss + mean_ORIGINAL_word_touch_reconstruct_loss,
+                                       mean_ORIGINAL_word_termination_loss +
+                                       mean_ORIGINAL_word_loc_reconstruct_loss +
+                                       mean_ORIGINAL_word_touch_reconstruct_loss,
                                        timestep)
                 writer_word.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss', mean_ORIGINAL_word_termination_loss,
                                        timestep)
@@ -246,7 +256,9 @@ def main(params):
                                        mean_ORIGINAL_word_touch_reconstruct_loss, timestep)
             if TYPE_A:
                 writer_word.add_scalar('Loss/mean_TYPE_A_loss',
-                                       mean_TYPE_A_word_termination_loss + mean_TYPE_A_word_loc_reconstruct_loss + mean_TYPE_A_word_touch_reconstruct_loss,
+                                       mean_TYPE_A_word_termination_loss +
+                                       mean_TYPE_A_word_loc_reconstruct_loss +
+                                       mean_TYPE_A_word_touch_reconstruct_loss,
                                        timestep)
                 writer_word.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss', mean_TYPE_A_word_termination_loss,
                                        timestep)
@@ -258,7 +270,9 @@ def main(params):
                                        timestep)
             if TYPE_B:
                 writer_word.add_scalar('Loss/mean_TYPE_B_loss',
-                                       mean_TYPE_B_word_termination_loss + mean_TYPE_B_word_loc_reconstruct_loss + mean_TYPE_B_word_touch_reconstruct_loss,
+                                       mean_TYPE_B_word_termination_loss +
+                                       mean_TYPE_B_word_loc_reconstruct_loss +
+                                       mean_TYPE_B_word_touch_reconstruct_loss,
                                        timestep)
                 writer_word.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss', mean_TYPE_B_word_termination_loss,
                                        timestep)
@@ -270,7 +284,9 @@ def main(params):
                                        timestep)
             if TYPE_C:
                 writer_word.add_scalar('Loss/mean_TYPE_C_loss',
-                                       mean_TYPE_C_word_termination_loss + mean_TYPE_C_word_loc_reconstruct_loss + mean_TYPE_C_word_touch_reconstruct_loss,
+                                       mean_TYPE_C_word_termination_loss +
+                                       mean_TYPE_C_word_loc_reconstruct_loss +
+                                       mean_TYPE_C_word_touch_reconstruct_loss,
                                        timestep)
                 writer_word.add_scalar('Z_LOSS/mean_TYPE_C_termination_loss', mean_TYPE_C_word_termination_loss,
                                        timestep)
@@ -282,7 +298,9 @@ def main(params):
                                        timestep)
             if TYPE_D:
                 writer_word.add_scalar('Loss/mean_TYPE_D_loss',
-                                       mean_TYPE_D_word_termination_loss + mean_TYPE_D_word_loc_reconstruct_loss + mean_TYPE_D_word_touch_reconstruct_loss,
+                                       mean_TYPE_D_word_termination_loss +
+                                       mean_TYPE_D_word_loc_reconstruct_loss +
+                                       mean_TYPE_D_word_touch_reconstruct_loss,
                                        timestep)
                 writer_word.add_scalar('Z_LOSS/mean_TYPE_D_termination_loss', mean_TYPE_D_word_termination_loss,
                                        timestep)
@@ -304,7 +322,9 @@ def main(params):
             writer_segment.add_scalar('Loss/mean_W_consistency_loss', mean_segment_W_consistency_loss, timestep)
             if ORIGINAL:
                 writer_segment.add_scalar('Loss/mean_ORIGINAL_loss',
-                                          mean_ORIGINAL_segment_termination_loss + mean_ORIGINAL_segment_loc_reconstruct_loss + mean_ORIGINAL_segment_touch_reconstruct_loss,
+                                          mean_ORIGINAL_segment_termination_loss +
+                                          mean_ORIGINAL_segment_loc_reconstruct_loss +
+                                          mean_ORIGINAL_segment_touch_reconstruct_loss,
                                           timestep)
                 writer_segment.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss',
                                           mean_ORIGINAL_segment_termination_loss, timestep)
@@ -314,7 +334,9 @@ def main(params):
                                           mean_ORIGINAL_segment_touch_reconstruct_loss, timestep)
             if TYPE_A:
                 writer_segment.add_scalar('Loss/mean_TYPE_A_loss',
-                                          mean_TYPE_A_segment_termination_loss + mean_TYPE_A_segment_loc_reconstruct_loss + mean_TYPE_A_segment_touch_reconstruct_loss,
+                                          mean_TYPE_A_segment_termination_loss +
+                                          mean_TYPE_A_segment_loc_reconstruct_loss +
+                                          mean_TYPE_A_segment_touch_reconstruct_loss,
                                           timestep)
                 writer_segment.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss', mean_TYPE_A_segment_termination_loss,
                                           timestep)
@@ -326,7 +348,9 @@ def main(params):
                                           mean_TYPE_A_segment_WC_reconstruct_loss, timestep)
             if TYPE_B:
                 writer_segment.add_scalar('Loss/mean_TYPE_B_loss',
-                                          mean_TYPE_B_segment_termination_loss + mean_TYPE_B_segment_loc_reconstruct_loss + mean_TYPE_B_segment_touch_reconstruct_loss,
+                                          mean_TYPE_B_segment_termination_loss +
+                                          mean_TYPE_B_segment_loc_reconstruct_loss +
+                                          mean_TYPE_B_segment_touch_reconstruct_loss,
                                           timestep)
                 writer_segment.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss', mean_TYPE_B_segment_termination_loss,
                                           timestep)
