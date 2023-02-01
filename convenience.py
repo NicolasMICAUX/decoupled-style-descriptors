@@ -1,9 +1,7 @@
 import re
 
 import svgwrite
-from PIL import Image
 
-from config.GlobalVariables import *
 from helper import *
 
 # import ffmpeg # for problems with ffmpeg uninstall ffmpeg and then install ffmpeg-python
@@ -13,28 +11,15 @@ L = 256
 
 def get_mean_global_W(net, loaded_data, device):
     """gets the mean global style vector for a given writer"""
-    [_, _, _, _, _, _, all_word_level_stroke_in, all_word_level_stroke_out, all_word_level_stroke_length,
-     all_word_level_term, all_word_level_char, all_word_level_char_length, all_segment_level_stroke_in,
-     all_segment_level_stroke_out,
-     all_segment_level_stroke_length, all_segment_level_term, all_segment_level_char,
-     all_segment_level_char_length] = loaded_data
+    [_, _, _, _, _, _, _, all_word_level_stroke_out, all_word_level_stroke_length,
+     all_word_level_term, all_word_level_char, all_word_level_char_length, _, _, _, _, _, _] = loaded_data
 
-    batch_word_level_stroke_in = [torch.FloatTensor(a).to(device) for a in all_word_level_stroke_in]
     batch_word_level_stroke_out = [torch.FloatTensor(a).to(device) for a in all_word_level_stroke_out]
     batch_word_level_stroke_length = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in
                                       all_word_level_stroke_length]
     batch_word_level_term = [torch.FloatTensor(a).to(device) for a in all_word_level_term]
     batch_word_level_char = [torch.LongTensor(a).to(device) for a in all_word_level_char]
     batch_word_level_char_length = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in all_word_level_char_length]
-    batch_segment_level_stroke_in = [[torch.FloatTensor(a).to(device) for a in b] for b in all_segment_level_stroke_in]
-    batch_segment_level_stroke_out = [[torch.FloatTensor(a).to(device) for a in b] for b in
-                                      all_segment_level_stroke_out]
-    batch_segment_level_stroke_length = [[torch.LongTensor(a).to(device).unsqueeze(-1) for a in b] for b in
-                                         all_segment_level_stroke_length]
-    batch_segment_level_term = [[torch.FloatTensor(a).to(device) for a in b] for b in all_segment_level_term]
-    batch_segment_level_char = [[torch.LongTensor(a).to(device) for a in b] for b in all_segment_level_char]
-    batch_segment_level_char_length = [[torch.LongTensor(a).to(device).unsqueeze(-1) for a in b] for b in
-                                       all_segment_level_char_length]
 
     with torch.no_grad():
         word_inf_state_out = net.inf_state_fc1(batch_word_level_stroke_out[0])
@@ -58,7 +43,7 @@ def get_mean_global_W(net, loaded_data, device):
         char_vector_1 = net.char_vec_relu_1(char_vector_1)
 
         char_out_1 = char_vector_1.unsqueeze(0)
-        char_out_1, (c, h) = net.char_lstm_1(char_out_1)
+        char_out_1, _ = net.char_lstm_1(char_out_1)
         char_out_1 = char_out_1.squeeze(0)
         char_out_1 = net.char_vec_fc2_1(char_out_1)
         char_matrix_1 = char_out_1.view([-1, 1, 256, 256])
@@ -102,8 +87,7 @@ def get_DSD(net, target_word, writer_mean_Ws, all_loaded_data, device):
         [_, _, _, _, _, _, all_word_level_stroke_in, all_word_level_stroke_out, all_word_level_stroke_length,
          all_word_level_term, all_word_level_char, all_word_level_char_length, all_segment_level_stroke_in,
          all_segment_level_stroke_out,
-         all_segment_level_stroke_length, all_segment_level_term, all_segment_level_char,
-         all_segment_level_char_length] = all_loaded_data[i]
+         all_segment_level_stroke_length, all_segment_level_term, all_segment_level_char, _] = all_loaded_data[i]
 
         available_segments = {}
         for sid, sentence in enumerate(all_segment_level_char[0]):
@@ -296,11 +280,12 @@ def get_commands(net, target_word, all_W_c):  # seems like target_word is only u
 
 
 def mdn_video(target_word, num_samples, scale_sd, clamp_mdn, net, all_loaded_data, device):
-    '''
+    """
     Method creating gif of mdn samples
     num_samples: number of samples to be inputted
     max_scale: the maximum value used to scale SD while sampling (increment is based on num samples)
-    '''
+    """
+    import ffmpeg
     words = target_word.split(' ')
     us_target_word = re.sub(r"\s+", '_', target_word)
     os.makedirs(f"./results/{us_target_word}_mdn_samples", exist_ok=True)
@@ -393,7 +378,7 @@ def writer_interpolation_video(target_sentence, transition_time, net, all_loaded
     """
     Generates a video of interpolating between each provided writer
     """
-
+    import ffmpeg
     n = len(all_loaded_data)
 
     os.makedirs(f"./results/{target_sentence}_blend_frames", exist_ok=True)
@@ -415,7 +400,7 @@ def writer_interpolation_video(target_sentence, transition_time, net, all_loaded
 
     for i in range(n - 1):
         for j in range(transition_time):
-            completion = j / (transition_time)
+            completion = j / transition_time
 
             individual_weights = [1 - completion, completion]
             writer_weights = [0] * i + individual_weights + [0] * (n - 2 - i)
@@ -475,7 +460,7 @@ def sample_blended_chars(character_weights, letters, net, all_loaded_data, devic
 
 def char_interpolation_video(letters, transition_time, net, all_loaded_data, device="cpu"):
     """Generates an image of handwritten text based on target_sentence"""
-
+    import ffmpeg
     os.makedirs(f"./results/{''.join(letters)}_frames", exist_ok=True)  # make a folder for the frames
 
     M = len(letters)
