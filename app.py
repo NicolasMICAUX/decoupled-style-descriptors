@@ -217,7 +217,7 @@ if __name__ == "__main__":
                 # todo : code duplication here
                 with gr.Row():
                     writer_download_btn = gr.Button("Save to SVG file")
-                    writer_download_btn.style(full_width="true")
+                    writer_download_btn.style(full_width=True)
                     writer_download = gr.File(interactive=False, show_label=False, visible=False)
 
                 writer_slider.change(fn=update_writer_slider,
@@ -260,7 +260,7 @@ if __name__ == "__main__":
                     char_output = gr.HTML(char_default_image[0]["value"])
                 with gr.Row():
                     char_download_btn = gr.Button("Save to SVG file")
-                    char_download_btn.style(full_width="true")
+                    char_download_btn.style(full_width=True)
                     char_download = gr.File(interactive=False, show_label=False, visible=False)
 
                 char_slider.change(fn=update_char_slider,
@@ -325,5 +325,5 @@ if __name__ == "__main__":
                 randomness_download_btn.click(fn=update_mdn_download,
                                               inputs=[mdn_svg_var],
                                               outputs=[randomness_download, randomness_download_btn])
-                randomness_download_btn.style(full_width="true")
+                randomness_download_btn.style(full_width=True)
     demo.launch()
