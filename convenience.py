@@ -1,20 +1,11 @@
-
-import os
 import re
-from random import random
-import torch
-import pickle
-import argparse
-import numpy as np
-from helper import *
-from PIL import Image
-import torch.nn as nn
-import torch.optim as optim
-from config.GlobalVariables import *
-from tensorboardX import SummaryWriter
-from SynthesisNetwork import SynthesisNetwork
-from DataLoader import DataLoader
+
 import svgwrite
+from PIL import Image
+
+from config.GlobalVariables import *
+from helper import *
+
 # import ffmpeg # for problems with ffmpeg uninstall ffmpeg and then install ffmpeg-python
 
 L = 256
@@ -22,21 +13,28 @@ L = 256
 
 def get_mean_global_W(net, loaded_data, device):
     """gets the mean global style vector for a given writer"""
-    [_, _, _, _, _, _, all_word_level_stroke_in, all_word_level_stroke_out, all_word_level_stroke_length, all_word_level_term, all_word_level_char, all_word_level_char_length, all_segment_level_stroke_in, all_segment_level_stroke_out,
-        all_segment_level_stroke_length, all_segment_level_term, all_segment_level_char, all_segment_level_char_length] = loaded_data
+    [_, _, _, _, _, _, all_word_level_stroke_in, all_word_level_stroke_out, all_word_level_stroke_length,
+     all_word_level_term, all_word_level_char, all_word_level_char_length, all_segment_level_stroke_in,
+     all_segment_level_stroke_out,
+     all_segment_level_stroke_length, all_segment_level_term, all_segment_level_char,
+     all_segment_level_char_length] = loaded_data
 
     batch_word_level_stroke_in = [torch.FloatTensor(a).to(device) for a in all_word_level_stroke_in]
     batch_word_level_stroke_out = [torch.FloatTensor(a).to(device) for a in all_word_level_stroke_out]
-    batch_word_level_stroke_length = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in all_word_level_stroke_length]
+    batch_word_level_stroke_length = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in
+                                      all_word_level_stroke_length]
     batch_word_level_term = [torch.FloatTensor(a).to(device) for a in all_word_level_term]
     batch_word_level_char = [torch.LongTensor(a).to(device) for a in all_word_level_char]
     batch_word_level_char_length = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in all_word_level_char_length]
     batch_segment_level_stroke_in = [[torch.FloatTensor(a).to(device) for a in b] for b in all_segment_level_stroke_in]
-    batch_segment_level_stroke_out = [[torch.FloatTensor(a).to(device) for a in b] for b in all_segment_level_stroke_out]
-    batch_segment_level_stroke_length = [[torch.LongTensor(a).to(device).unsqueeze(-1) for a in b] for b in all_segment_level_stroke_length]
+    batch_segment_level_stroke_out = [[torch.FloatTensor(a).to(device) for a in b] for b in
+                                      all_segment_level_stroke_out]
+    batch_segment_level_stroke_length = [[torch.LongTensor(a).to(device).unsqueeze(-1) for a in b] for b in
+                                         all_segment_level_stroke_length]
     batch_segment_level_term = [[torch.FloatTensor(a).to(device) for a in b] for b in all_segment_level_term]
     batch_segment_level_char = [[torch.LongTensor(a).to(device) for a in b] for b in all_segment_level_char]
-    batch_segment_level_char_length = [[torch.LongTensor(a).to(device).unsqueeze(-1) for a in b] for b in all_segment_level_char_length]
+    batch_segment_level_char_length = [[torch.LongTensor(a).to(device).unsqueeze(-1) for a in b] for b in
+                                       all_segment_level_char_length]
 
     with torch.no_grad():
         word_inf_state_out = net.inf_state_fc1(batch_word_level_stroke_out[0])
@@ -101,8 +99,11 @@ def get_DSD(net, target_word, writer_mean_Ws, all_loaded_data, device):
     for i in range(n):
         np.random.seed(0)
 
-        [_, _, _, _, _, _, all_word_level_stroke_in, all_word_level_stroke_out, all_word_level_stroke_length, all_word_level_term, all_word_level_char, all_word_level_char_length, all_segment_level_stroke_in, all_segment_level_stroke_out,
-            all_segment_level_stroke_length, all_segment_level_term, all_segment_level_char, all_segment_level_char_length] = all_loaded_data[i]
+        [_, _, _, _, _, _, all_word_level_stroke_in, all_word_level_stroke_out, all_word_level_stroke_length,
+         all_word_level_term, all_word_level_char, all_word_level_char_length, all_segment_level_stroke_in,
+         all_segment_level_stroke_out,
+         all_segment_level_stroke_length, all_segment_level_term, all_segment_level_char,
+         all_segment_level_char_length] = all_loaded_data[i]
 
         available_segments = {}
         for sid, sentence in enumerate(all_segment_level_char[0]):
@@ -111,9 +112,13 @@ def get_DSD(net, target_word, writer_mean_Ws, all_loaded_data, device):
                 split_ids = np.asarray(np.nonzero(all_segment_level_term[0][sid][wid]))
 
                 if segment in available_segments:
-                    available_segments[segment].append([all_segment_level_stroke_out[0][sid][wid][:all_segment_level_stroke_length[0][sid][wid]], split_ids])
+                    available_segments[segment].append(
+                        [all_segment_level_stroke_out[0][sid][wid][:all_segment_level_stroke_length[0][sid][wid]],
+                         split_ids])
                 else:
-                    available_segments[segment] = [[all_segment_level_stroke_out[0][sid][wid][:all_segment_level_stroke_length[0][sid][wid]], split_ids]]
+                    available_segments[segment] = [
+                        [all_segment_level_stroke_out[0][sid][wid][:all_segment_level_stroke_length[0][sid][wid]],
+                         split_ids]]
 
         index = 0
         all_W = []
@@ -204,7 +209,8 @@ def get_writer_blend_W_c(writer_weights, all_Ws, all_Cs):
     - an M x 1 x L tensor of M scharacter-dependent style-dependent DSDs
     """
     n, M, _ = all_Ws.shape
-    weights_tensor = torch.tensor(writer_weights).repeat_interleave(M * L).reshape(n, M, L)  # repeat accross remaining dimensions
+    weights_tensor = torch.tensor(writer_weights).repeat_interleave(M * L).reshape(n, M,
+                                                                                   L)  # repeat accross remaining dimensions
     W_vectors = (weights_tensor * all_Ws).sum(axis=0).unsqueeze(-1)  # take weighted sum accross writers axis
     char_matrices = all_Cs[0, :, :, :]  # character matrices are independent of writer
 
@@ -232,7 +238,8 @@ def get_character_blend_W_c(character_weights, all_Ws, all_Cs):
     M = len(character_weights)
     W_vector = all_Ws[0, 0, :].unsqueeze(-1)
 
-    weights_tensor = torch.tensor(character_weights).repeat_interleave(L * L).reshape(1, M, L, L)  # repeat accross remaining dimensions
+    weights_tensor = torch.tensor(character_weights).repeat_interleave(L * L).reshape(1, M, L,
+                                                                                      L)  # repeat accross remaining dimensions
     char_matrix = (weights_tensor * all_Cs).sum(axis=1).squeeze()  # take weighted sum accross characters axis
 
     W_c = char_matrix @ W_vector
@@ -362,8 +369,8 @@ def sample_character_grid(letters, grid_size, net, all_loaded_data, device="cpu"
 
             character_weights = [(1 - wx) * (1 - wy),  # top left is 1 at (0, 0)
                                  wx * (1 - wy),  # top right is 1  at (1, 0)
-                                 (1 - wx) * wy,       # bottom left is 1 at (0, 1)
-                                 wx * wy]       # bottom right is 1 at (1, 1)
+                                 (1 - wx) * wy,  # bottom left is 1 at (0, 1)
+                                 wx * wy]  # bottom right is 1 at (1, 1)
             all_W_c = get_character_blend_W_c(character_weights, all_Ws, all_Cs)
             all_commands = get_commands(net, letters[0], all_W_c)
 
@@ -373,10 +380,10 @@ def sample_character_grid(letters, grid_size, net, all_loaded_data, device="cpu"
             for [x, y, t] in all_commands:
                 if t == 0:
                     dr.line((
-                        px + offset_x + width/2,
-                        py + offset_y - width/2,  # letters are shifted down for some reason
-                        x + offset_x + width/2,
-                        y + offset_y - width/2), 255, 1)
+                        px + offset_x + width / 2,
+                        py + offset_y - width / 2,  # letters are shifted down for some reason
+                        x + offset_x + width / 2,
+                        y + offset_y - width / 2), 255, 1)
                 px, py = x, y
 
     return im
@@ -408,13 +415,14 @@ def writer_interpolation_video(target_sentence, transition_time, net, all_loaded
 
     for i in range(n - 1):
         for j in range(transition_time):
-            completion = j/(transition_time)
+            completion = j / (transition_time)
 
             individual_weights = [1 - completion, completion]
             writer_weights = [0] * i + individual_weights + [0] * (n - 2 - i)
 
             im = draw_words(words, word_Ws, word_Cs, writer_weights, net)
-            im.convert("RGB").save(f"./results/{target_sentence}_blend_frames/frame_{str(i * transition_time + j).zfill(3)}.png")
+            im.convert("RGB").save(
+                f"./results/{target_sentence}_blend_frames/frame_{str(i * transition_time + j).zfill(3)}.png")
 
     # Convert fromes to video using ffmpeg
     photos = ffmpeg.input(f"./results/{target_sentence}_blend_frames/frame_*.png", pattern_type='glob', framerate=10)
@@ -489,7 +497,8 @@ def char_interpolation_video(letters, transition_time, net, all_loaded_data, dev
             all_commands = get_commands(net, letters[i], all_W_c)
 
             im = commands_to_image(all_commands, 100, 100, 25, 25)
-            im.convert("RGB").save(f"results/{''.join(letters)}_frames/frames_{str(i * transition_time + j).zfill(3)}.png")
+            im.convert("RGB").save(
+                f"results/{''.join(letters)}_frames/frames_{str(i * transition_time + j).zfill(3)}.png")
 
     # Convert fromes to video using ffmpeg
     photos = ffmpeg.input(f"results/{''.join(letters)}_frames/frames_*.png", pattern_type='glob', framerate=24)
@@ -507,7 +516,7 @@ def draw_words(words, word_Ws, word_Cs, writer_weights, net):
 
         for [x, y, t] in all_commands:
             if t == 0:
-                dr.line((px+width, py, x+width, y), 255, 1)
+                dr.line((px + width, py, x + width, y), 255, 1)
             px, py = x, y
         width += np.max(all_commands[:, 0]) + 25
 

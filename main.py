@@ -1,30 +1,31 @@
 # python -u main.py --divider 5.0 --weight_dim 256 --sample 5 --device 0 --num_layers 3 --num_writer 1 --lr 0.001 --VALIDATION 1 --datadir 2 --TYPE_B 0 --TYPE_C 0
 
+import argparse
+import os
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
+from PIL import Image, ImageDraw
 from tensorboardX import SummaryWriter
-from PIL import Image, ImageDraw, ImageFont
+
 from DataLoader import DataLoader
-import pickle
-from config.GlobalVariables import *
-import os
-import argparse
 from SynthesisNetwork import SynthesisNetwork
+
 
 def main(params):
     cwds = os.getcwd()
     cwd = cwds.split('/')[-1]
 
-    divider        = params.divider
-    weight_dim    = params.weight_dim
-    num_samples    = params.sample
-    did            = params.device
-    num_layers    = params.num_layers
-    num_writer    = params.num_writer
-    lr            = params.lr
-    no_char        = params.no_char
+    divider = params.divider
+    weight_dim = params.weight_dim
+    num_samples = params.sample
+    did = params.device
+    num_layers = params.num_layers
+    num_writer = params.num_writer
+    lr = params.lr
+    no_char = params.no_char
 
     datadir = './data/writers'
 
@@ -84,32 +85,33 @@ def main(params):
     else:
         REC = False
 
-
-    timestep        = 0
-    grad_clip        = 10.0
-    device            = "cuda" if torch.cuda.is_available() else "cpu"
+    timestep = 0
+    grad_clip = 10.0
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     if device == "cuda":
         torch.cuda.set_device(did)
     else:
-        num_writer        = 1
-        num_samples        = 3
+        num_writer = 1
+        num_samples = 3
 
-    writer_all        = SummaryWriter(logdir='./runs/all-'+cwd)
+    writer_all = SummaryWriter(logdir='./runs/all-' + cwd)
     if VALIDATION:
-        valid_writer_all    = SummaryWriter(logdir='./runs/valid-all-'+cwd)
+        valid_writer_all = SummaryWriter(logdir='./runs/valid-all-' + cwd)
 
-    print (sentence_loss, word_loss, segment_loss)
-    net                = SynthesisNetwork(weight_dim=weight_dim, num_layers=num_layers, sentence_loss=sentence_loss, word_loss=word_loss, segment_loss=segment_loss, TYPE_A=TYPE_A, TYPE_B=TYPE_B, TYPE_C=TYPE_C, TYPE_D=TYPE_D, ORIGINAL=ORIGINAL, REC=REC)
-    _                = net.to(device)
+    print(sentence_loss, word_loss, segment_loss)
+    net = SynthesisNetwork(weight_dim=weight_dim, num_layers=num_layers, sentence_loss=sentence_loss,
+                           word_loss=word_loss, segment_loss=segment_loss, TYPE_A=TYPE_A, TYPE_B=TYPE_B, TYPE_C=TYPE_C,
+                           TYPE_D=TYPE_D, ORIGINAL=ORIGINAL, REC=REC)
+    _ = net.to(device)
 
     for param in net.parameters():
         nn.init.normal_(param, mean=0.0, std=0.075)
 
-    dl                = DataLoader(num_writer=num_writer, num_samples=num_samples, divider=divider, datadir=datadir)
+    dl = DataLoader(num_writer=num_writer, num_samples=num_samples, divider=divider, datadir=datadir)
 
-    optimizer        = optim.Adam(net.parameters(), lr=lr)
-    step_size        = int(10000 / (num_writer * num_samples))
-    scheduler         = optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.99)
+    optimizer = optim.Adam(net.parameters(), lr=lr)
+    step_size = int(10000 / (num_writer * num_samples))
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.99)
 
     if LOAD_FROM_CHECKPOINT:
         checkpoints = os.listdir("./model")
@@ -122,125 +124,218 @@ def main(params):
 
     while True:
         optimizer.zero_grad()
-        timestep           += num_writer * num_samples
+        timestep += num_writer * num_samples
 
-        [all_sentence_level_stroke_in, all_sentence_level_stroke_out, all_sentence_level_stroke_length, all_sentence_level_term,
-        all_sentence_level_char, all_sentence_level_char_length, all_word_level_stroke_in, all_word_level_stroke_out,
-        all_word_level_stroke_length, all_word_level_term, all_word_level_char, all_word_level_char_length,
-        all_segment_level_stroke_in, all_segment_level_stroke_out, all_segment_level_stroke_length, all_segment_level_term,
-        all_segment_level_char, all_segment_level_char_length] = dl.next_batch(TYPE='TRAIN')
+        [all_sentence_level_stroke_in, all_sentence_level_stroke_out, all_sentence_level_stroke_length,
+         all_sentence_level_term,
+         all_sentence_level_char, all_sentence_level_char_length, all_word_level_stroke_in, all_word_level_stroke_out,
+         all_word_level_stroke_length, all_word_level_term, all_word_level_char, all_word_level_char_length,
+         all_segment_level_stroke_in, all_segment_level_stroke_out, all_segment_level_stroke_length,
+         all_segment_level_term,
+         all_segment_level_char, all_segment_level_char_length] = dl.next_batch(TYPE='TRAIN')
 
-        batch_sentence_level_stroke_in         = [torch.FloatTensor(a).to(device) for a in all_sentence_level_stroke_in]
-        batch_sentence_level_stroke_out     = [torch.FloatTensor(a).to(device) for a in all_sentence_level_stroke_out]
-        batch_sentence_level_stroke_length     = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in all_sentence_level_stroke_length]
-        batch_sentence_level_term             = [torch.FloatTensor(a).to(device) for a in all_sentence_level_term]
-        batch_sentence_level_char             = [torch.LongTensor(a).to(device) for a in all_sentence_level_char]
-        batch_sentence_level_char_length     = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in all_sentence_level_char_length]
-        batch_word_level_stroke_in             = [torch.FloatTensor(a).to(device) for a in all_word_level_stroke_in]
-        batch_word_level_stroke_out         = [torch.FloatTensor(a).to(device) for a in all_word_level_stroke_out]
-        batch_word_level_stroke_length         = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in all_word_level_stroke_length]
-        batch_word_level_term                 = [torch.FloatTensor(a).to(device) for a in all_word_level_term]
-        batch_word_level_char                 = [torch.LongTensor(a).to(device) for a in all_word_level_char]
-        batch_word_level_char_length         = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in all_word_level_char_length]
-        batch_segment_level_stroke_in         = [[torch.FloatTensor(a).to(device) for a in b] for b in all_segment_level_stroke_in]
-        batch_segment_level_stroke_out         = [[torch.FloatTensor(a).to(device) for a in b] for b in all_segment_level_stroke_out]
-        batch_segment_level_stroke_length     = [[torch.LongTensor(a).to(device).unsqueeze(-1) for a in b] for b in all_segment_level_stroke_length]
-        batch_segment_level_term             = [[torch.FloatTensor(a).to(device) for a in b] for b in all_segment_level_term]
-        batch_segment_level_char             = [[torch.LongTensor(a).to(device) for a in b] for b in all_segment_level_char]
-        batch_segment_level_char_length     = [[torch.LongTensor(a).to(device).unsqueeze(-1) for a in b] for b in all_segment_level_char_length]
+        batch_sentence_level_stroke_in = [torch.FloatTensor(a).to(device) for a in all_sentence_level_stroke_in]
+        batch_sentence_level_stroke_out = [torch.FloatTensor(a).to(device) for a in all_sentence_level_stroke_out]
+        batch_sentence_level_stroke_length = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in
+                                              all_sentence_level_stroke_length]
+        batch_sentence_level_term = [torch.FloatTensor(a).to(device) for a in all_sentence_level_term]
+        batch_sentence_level_char = [torch.LongTensor(a).to(device) for a in all_sentence_level_char]
+        batch_sentence_level_char_length = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in
+                                            all_sentence_level_char_length]
+        batch_word_level_stroke_in = [torch.FloatTensor(a).to(device) for a in all_word_level_stroke_in]
+        batch_word_level_stroke_out = [torch.FloatTensor(a).to(device) for a in all_word_level_stroke_out]
+        batch_word_level_stroke_length = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in
+                                          all_word_level_stroke_length]
+        batch_word_level_term = [torch.FloatTensor(a).to(device) for a in all_word_level_term]
+        batch_word_level_char = [torch.LongTensor(a).to(device) for a in all_word_level_char]
+        batch_word_level_char_length = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in
+                                        all_word_level_char_length]
+        batch_segment_level_stroke_in = [[torch.FloatTensor(a).to(device) for a in b] for b in
+                                         all_segment_level_stroke_in]
+        batch_segment_level_stroke_out = [[torch.FloatTensor(a).to(device) for a in b] for b in
+                                          all_segment_level_stroke_out]
+        batch_segment_level_stroke_length = [[torch.LongTensor(a).to(device).unsqueeze(-1) for a in b] for b in
+                                             all_segment_level_stroke_length]
+        batch_segment_level_term = [[torch.FloatTensor(a).to(device) for a in b] for b in all_segment_level_term]
+        batch_segment_level_char = [[torch.LongTensor(a).to(device) for a in b] for b in all_segment_level_char]
+        batch_segment_level_char_length = [[torch.LongTensor(a).to(device).unsqueeze(-1) for a in b] for b in
+                                           all_segment_level_char_length]
 
         res = net([batch_sentence_level_stroke_in, batch_sentence_level_stroke_out, batch_sentence_level_stroke_length,
-                batch_sentence_level_term, batch_sentence_level_char, batch_sentence_level_char_length,
-                batch_word_level_stroke_in, batch_word_level_stroke_out, batch_word_level_stroke_length,
-                batch_word_level_term, batch_word_level_char, batch_word_level_char_length, batch_segment_level_stroke_in,
-                batch_segment_level_stroke_out, batch_segment_level_stroke_length, batch_segment_level_term,
-                batch_segment_level_char, batch_segment_level_char_length])
+                   batch_sentence_level_term, batch_sentence_level_char, batch_sentence_level_char_length,
+                   batch_word_level_stroke_in, batch_word_level_stroke_out, batch_word_level_stroke_length,
+                   batch_word_level_term, batch_word_level_char, batch_word_level_char_length,
+                   batch_segment_level_stroke_in,
+                   batch_segment_level_stroke_out, batch_segment_level_stroke_length, batch_segment_level_term,
+                   batch_segment_level_char, batch_segment_level_char_length])
 
         total_loss, sentence_losses, word_losses, segment_losses = res
 
-        print ("Step :", timestep, "\tLoss :", total_loss.item(), "\tlr :", optimizer.param_groups[0]['lr'])
+        print("Step :", timestep, "\tLoss :", total_loss.item(), "\tlr :", optimizer.param_groups[0]['lr'])
 
         writer_all.add_scalar('ALL/total_loss', total_loss, timestep)
 
         if sentence_loss:
-            [total_sentence_loss, mean_sentence_W_consistency_loss, mean_ORIGINAL_sentence_termination_loss, mean_ORIGINAL_sentence_loc_reconstruct_loss, mean_ORIGINAL_sentence_touch_reconstruct_loss, mean_TYPE_A_sentence_termination_loss, mean_TYPE_A_sentence_loc_reconstruct_loss, mean_TYPE_A_sentence_touch_reconstruct_loss, mean_TYPE_B_sentence_termination_loss, mean_TYPE_B_sentence_loc_reconstruct_loss, mean_TYPE_B_sentence_touch_reconstruct_loss, mean_TYPE_A_sentence_WC_reconstruct_loss, mean_TYPE_B_sentence_WC_reconstruct_loss] = sentence_losses
+            [total_sentence_loss, mean_sentence_W_consistency_loss, mean_ORIGINAL_sentence_termination_loss,
+             mean_ORIGINAL_sentence_loc_reconstruct_loss, mean_ORIGINAL_sentence_touch_reconstruct_loss,
+             mean_TYPE_A_sentence_termination_loss, mean_TYPE_A_sentence_loc_reconstruct_loss,
+             mean_TYPE_A_sentence_touch_reconstruct_loss, mean_TYPE_B_sentence_termination_loss,
+             mean_TYPE_B_sentence_loc_reconstruct_loss, mean_TYPE_B_sentence_touch_reconstruct_loss,
+             mean_TYPE_A_sentence_WC_reconstruct_loss, mean_TYPE_B_sentence_WC_reconstruct_loss] = sentence_losses
 
             writer_all.add_scalar('ALL/total_sentence_loss', total_sentence_loss, timestep)
             writer_sentence.add_scalar('Loss/mean_W_consistency_loss', mean_sentence_W_consistency_loss, timestep)
             if ORIGINAL:
-                writer_sentence.add_scalar('Loss/mean_ORIGINAL_loss', mean_ORIGINAL_sentence_termination_loss + mean_ORIGINAL_sentence_loc_reconstruct_loss + mean_ORIGINAL_sentence_touch_reconstruct_loss, timestep)
-                writer_sentence.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss', mean_ORIGINAL_sentence_termination_loss, timestep)
-                writer_sentence.add_scalar('Loss_Loc/mean_ORIGINAL_loc_reconstruct_loss', mean_ORIGINAL_sentence_loc_reconstruct_loss, timestep)
-                writer_sentence.add_scalar('Z_LOSS/mean_ORIGINAL_touch_reconstruct_loss', mean_ORIGINAL_sentence_touch_reconstruct_loss, timestep)
+                writer_sentence.add_scalar('Loss/mean_ORIGINAL_loss',
+                                           mean_ORIGINAL_sentence_termination_loss + mean_ORIGINAL_sentence_loc_reconstruct_loss + mean_ORIGINAL_sentence_touch_reconstruct_loss,
+                                           timestep)
+                writer_sentence.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss',
+                                           mean_ORIGINAL_sentence_termination_loss, timestep)
+                writer_sentence.add_scalar('Loss_Loc/mean_ORIGINAL_loc_reconstruct_loss',
+                                           mean_ORIGINAL_sentence_loc_reconstruct_loss, timestep)
+                writer_sentence.add_scalar('Z_LOSS/mean_ORIGINAL_touch_reconstruct_loss',
+                                           mean_ORIGINAL_sentence_touch_reconstruct_loss, timestep)
             if TYPE_A:
-                writer_sentence.add_scalar('Loss/mean_TYPE_A_loss', mean_TYPE_A_sentence_termination_loss + mean_TYPE_A_sentence_loc_reconstruct_loss + mean_TYPE_A_sentence_touch_reconstruct_loss, timestep)
-                writer_sentence.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss', mean_TYPE_A_sentence_termination_loss, timestep)
-                writer_sentence.add_scalar('Loss_Loc/mean_TYPE_A_loc_reconstruct_loss', mean_TYPE_A_sentence_loc_reconstruct_loss, timestep)
-                writer_sentence.add_scalar('Z_LOSS/mean_TYPE_A_touch_reconstruct_loss', mean_TYPE_A_sentence_touch_reconstruct_loss, timestep)
-                writer_sentence.add_scalar('Z_LOSS/mean_TYPE_A_WC_reconstruct_loss', mean_TYPE_A_sentence_WC_reconstruct_loss, timestep)
+                writer_sentence.add_scalar('Loss/mean_TYPE_A_loss',
+                                           mean_TYPE_A_sentence_termination_loss + mean_TYPE_A_sentence_loc_reconstruct_loss + mean_TYPE_A_sentence_touch_reconstruct_loss,
+                                           timestep)
+                writer_sentence.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss', mean_TYPE_A_sentence_termination_loss,
+                                           timestep)
+                writer_sentence.add_scalar('Loss_Loc/mean_TYPE_A_loc_reconstruct_loss',
+                                           mean_TYPE_A_sentence_loc_reconstruct_loss, timestep)
+                writer_sentence.add_scalar('Z_LOSS/mean_TYPE_A_touch_reconstruct_loss',
+                                           mean_TYPE_A_sentence_touch_reconstruct_loss, timestep)
+                writer_sentence.add_scalar('Z_LOSS/mean_TYPE_A_WC_reconstruct_loss',
+                                           mean_TYPE_A_sentence_WC_reconstruct_loss, timestep)
             if TYPE_B:
-                writer_sentence.add_scalar('Loss/mean_TYPE_B_loss', mean_TYPE_B_sentence_termination_loss + mean_TYPE_B_sentence_loc_reconstruct_loss + mean_TYPE_B_sentence_touch_reconstruct_loss, timestep)
-                writer_sentence.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss', mean_TYPE_B_sentence_termination_loss, timestep)
-                writer_sentence.add_scalar('Loss_Loc/mean_TYPE_B_loc_reconstruct_loss', mean_TYPE_B_sentence_loc_reconstruct_loss, timestep)
-                writer_sentence.add_scalar('Z_LOSS/mean_TYPE_B_touch_reconstruct_loss', mean_TYPE_B_sentence_touch_reconstruct_loss, timestep)
-                writer_sentence.add_scalar('Z_LOSS/mean_TYPE_B_WC_reconstruct_loss', mean_TYPE_B_sentence_WC_reconstruct_loss, timestep)
+                writer_sentence.add_scalar('Loss/mean_TYPE_B_loss',
+                                           mean_TYPE_B_sentence_termination_loss + mean_TYPE_B_sentence_loc_reconstruct_loss + mean_TYPE_B_sentence_touch_reconstruct_loss,
+                                           timestep)
+                writer_sentence.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss', mean_TYPE_B_sentence_termination_loss,
+                                           timestep)
+                writer_sentence.add_scalar('Loss_Loc/mean_TYPE_B_loc_reconstruct_loss',
+                                           mean_TYPE_B_sentence_loc_reconstruct_loss, timestep)
+                writer_sentence.add_scalar('Z_LOSS/mean_TYPE_B_touch_reconstruct_loss',
+                                           mean_TYPE_B_sentence_touch_reconstruct_loss, timestep)
+                writer_sentence.add_scalar('Z_LOSS/mean_TYPE_B_WC_reconstruct_loss',
+                                           mean_TYPE_B_sentence_WC_reconstruct_loss, timestep)
 
         if word_loss:
-            [total_word_loss, mean_word_W_consistency_loss, mean_ORIGINAL_word_termination_loss, mean_ORIGINAL_word_loc_reconstruct_loss, mean_ORIGINAL_word_touch_reconstruct_loss, mean_TYPE_A_word_termination_loss, mean_TYPE_A_word_loc_reconstruct_loss, mean_TYPE_A_word_touch_reconstruct_loss, mean_TYPE_B_word_termination_loss, mean_TYPE_B_word_loc_reconstruct_loss, mean_TYPE_B_word_touch_reconstruct_loss, mean_TYPE_C_word_termination_loss, mean_TYPE_C_word_loc_reconstruct_loss, mean_TYPE_C_word_touch_reconstruct_loss, mean_TYPE_D_word_termination_loss, mean_TYPE_D_word_loc_reconstruct_loss, mean_TYPE_D_word_touch_reconstruct_loss, mean_TYPE_A_word_WC_reconstruct_loss, mean_TYPE_B_word_WC_reconstruct_loss, mean_TYPE_C_word_WC_reconstruct_loss, mean_TYPE_D_word_WC_reconstruct_loss] = word_losses
+            [total_word_loss, mean_word_W_consistency_loss, mean_ORIGINAL_word_termination_loss,
+             mean_ORIGINAL_word_loc_reconstruct_loss, mean_ORIGINAL_word_touch_reconstruct_loss,
+             mean_TYPE_A_word_termination_loss, mean_TYPE_A_word_loc_reconstruct_loss,
+             mean_TYPE_A_word_touch_reconstruct_loss, mean_TYPE_B_word_termination_loss,
+             mean_TYPE_B_word_loc_reconstruct_loss, mean_TYPE_B_word_touch_reconstruct_loss,
+             mean_TYPE_C_word_termination_loss, mean_TYPE_C_word_loc_reconstruct_loss,
+             mean_TYPE_C_word_touch_reconstruct_loss, mean_TYPE_D_word_termination_loss,
+             mean_TYPE_D_word_loc_reconstruct_loss, mean_TYPE_D_word_touch_reconstruct_loss,
+             mean_TYPE_A_word_WC_reconstruct_loss, mean_TYPE_B_word_WC_reconstruct_loss,
+             mean_TYPE_C_word_WC_reconstruct_loss, mean_TYPE_D_word_WC_reconstruct_loss] = word_losses
             writer_all.add_scalar('ALL/total_word_loss', total_word_loss, timestep)
             writer_word.add_scalar('Loss/mean_W_consistency_loss', mean_word_W_consistency_loss, timestep)
 
             if ORIGINAL:
-                writer_word.add_scalar('Loss/mean_ORIGINAL_loss', mean_ORIGINAL_word_termination_loss + mean_ORIGINAL_word_loc_reconstruct_loss + mean_ORIGINAL_word_touch_reconstruct_loss, timestep)
-                writer_word.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss', mean_ORIGINAL_word_termination_loss, timestep)
-                writer_word.add_scalar('Loss_Loc/mean_ORIGINAL_loc_reconstruct_loss', mean_ORIGINAL_word_loc_reconstruct_loss, timestep)
-                writer_word.add_scalar('Z_LOSS/mean_ORIGINAL_touch_reconstruct_loss', mean_ORIGINAL_word_touch_reconstruct_loss, timestep)
+                writer_word.add_scalar('Loss/mean_ORIGINAL_loss',
+                                       mean_ORIGINAL_word_termination_loss + mean_ORIGINAL_word_loc_reconstruct_loss + mean_ORIGINAL_word_touch_reconstruct_loss,
+                                       timestep)
+                writer_word.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss', mean_ORIGINAL_word_termination_loss,
+                                       timestep)
+                writer_word.add_scalar('Loss_Loc/mean_ORIGINAL_loc_reconstruct_loss',
+                                       mean_ORIGINAL_word_loc_reconstruct_loss, timestep)
+                writer_word.add_scalar('Z_LOSS/mean_ORIGINAL_touch_reconstruct_loss',
+                                       mean_ORIGINAL_word_touch_reconstruct_loss, timestep)
             if TYPE_A:
-                writer_word.add_scalar('Loss/mean_TYPE_A_loss', mean_TYPE_A_word_termination_loss + mean_TYPE_A_word_loc_reconstruct_loss + mean_TYPE_A_word_touch_reconstruct_loss, timestep)
-                writer_word.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss', mean_TYPE_A_word_termination_loss, timestep)
-                writer_word.add_scalar('Loss_Loc/mean_TYPE_A_loc_reconstruct_loss', mean_TYPE_A_word_loc_reconstruct_loss, timestep)
-                writer_word.add_scalar('Z_LOSS/mean_TYPE_A_touch_reconstruct_loss', mean_TYPE_A_word_touch_reconstruct_loss, timestep)
-                writer_word.add_scalar('Z_LOSS/mean_TYPE_A_WC_reconstruct_loss', mean_TYPE_A_word_WC_reconstruct_loss, timestep)
+                writer_word.add_scalar('Loss/mean_TYPE_A_loss',
+                                       mean_TYPE_A_word_termination_loss + mean_TYPE_A_word_loc_reconstruct_loss + mean_TYPE_A_word_touch_reconstruct_loss,
+                                       timestep)
+                writer_word.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss', mean_TYPE_A_word_termination_loss,
+                                       timestep)
+                writer_word.add_scalar('Loss_Loc/mean_TYPE_A_loc_reconstruct_loss',
+                                       mean_TYPE_A_word_loc_reconstruct_loss, timestep)
+                writer_word.add_scalar('Z_LOSS/mean_TYPE_A_touch_reconstruct_loss',
+                                       mean_TYPE_A_word_touch_reconstruct_loss, timestep)
+                writer_word.add_scalar('Z_LOSS/mean_TYPE_A_WC_reconstruct_loss', mean_TYPE_A_word_WC_reconstruct_loss,
+                                       timestep)
             if TYPE_B:
-                writer_word.add_scalar('Loss/mean_TYPE_B_loss', mean_TYPE_B_word_termination_loss + mean_TYPE_B_word_loc_reconstruct_loss + mean_TYPE_B_word_touch_reconstruct_loss, timestep)
-                writer_word.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss', mean_TYPE_B_word_termination_loss, timestep)
-                writer_word.add_scalar('Loss_Loc/mean_TYPE_B_loc_reconstruct_loss', mean_TYPE_B_word_loc_reconstruct_loss, timestep)
-                writer_word.add_scalar('Z_LOSS/mean_TYPE_B_touch_reconstruct_loss', mean_TYPE_B_word_touch_reconstruct_loss, timestep)
-                writer_word.add_scalar('Z_LOSS/mean_TYPE_B_WC_reconstruct_loss', mean_TYPE_B_word_WC_reconstruct_loss, timestep)
+                writer_word.add_scalar('Loss/mean_TYPE_B_loss',
+                                       mean_TYPE_B_word_termination_loss + mean_TYPE_B_word_loc_reconstruct_loss + mean_TYPE_B_word_touch_reconstruct_loss,
+                                       timestep)
+                writer_word.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss', mean_TYPE_B_word_termination_loss,
+                                       timestep)
+                writer_word.add_scalar('Loss_Loc/mean_TYPE_B_loc_reconstruct_loss',
+                                       mean_TYPE_B_word_loc_reconstruct_loss, timestep)
+                writer_word.add_scalar('Z_LOSS/mean_TYPE_B_touch_reconstruct_loss',
+                                       mean_TYPE_B_word_touch_reconstruct_loss, timestep)
+                writer_word.add_scalar('Z_LOSS/mean_TYPE_B_WC_reconstruct_loss', mean_TYPE_B_word_WC_reconstruct_loss,
+                                       timestep)
             if TYPE_C:
-                writer_word.add_scalar('Loss/mean_TYPE_C_loss', mean_TYPE_C_word_termination_loss + mean_TYPE_C_word_loc_reconstruct_loss + mean_TYPE_C_word_touch_reconstruct_loss, timestep)
-                writer_word.add_scalar('Z_LOSS/mean_TYPE_C_termination_loss', mean_TYPE_C_word_termination_loss, timestep)
-                writer_word.add_scalar('Loss_Loc/mean_TYPE_C_loc_reconstruct_loss', mean_TYPE_C_word_loc_reconstruct_loss, timestep)
-                writer_word.add_scalar('Z_LOSS/mean_TYPE_C_touch_reconstruct_loss', mean_TYPE_C_word_touch_reconstruct_loss, timestep)
-                writer_word.add_scalar('Z_LOSS/mean_TYPE_C_WC_reconstruct_loss', mean_TYPE_C_word_WC_reconstruct_loss, timestep)
+                writer_word.add_scalar('Loss/mean_TYPE_C_loss',
+                                       mean_TYPE_C_word_termination_loss + mean_TYPE_C_word_loc_reconstruct_loss + mean_TYPE_C_word_touch_reconstruct_loss,
+                                       timestep)
+                writer_word.add_scalar('Z_LOSS/mean_TYPE_C_termination_loss', mean_TYPE_C_word_termination_loss,
+                                       timestep)
+                writer_word.add_scalar('Loss_Loc/mean_TYPE_C_loc_reconstruct_loss',
+                                       mean_TYPE_C_word_loc_reconstruct_loss, timestep)
+                writer_word.add_scalar('Z_LOSS/mean_TYPE_C_touch_reconstruct_loss',
+                                       mean_TYPE_C_word_touch_reconstruct_loss, timestep)
+                writer_word.add_scalar('Z_LOSS/mean_TYPE_C_WC_reconstruct_loss', mean_TYPE_C_word_WC_reconstruct_loss,
+                                       timestep)
             if TYPE_D:
-                writer_word.add_scalar('Loss/mean_TYPE_D_loss', mean_TYPE_D_word_termination_loss + mean_TYPE_D_word_loc_reconstruct_loss + mean_TYPE_D_word_touch_reconstruct_loss, timestep)
-                writer_word.add_scalar('Z_LOSS/mean_TYPE_D_termination_loss', mean_TYPE_D_word_termination_loss, timestep)
-                writer_word.add_scalar('Loss_Loc/mean_TYPE_D_loc_reconstruct_loss', mean_TYPE_D_word_loc_reconstruct_loss, timestep)
-                writer_word.add_scalar('Z_LOSS/mean_TYPE_D_touch_reconstruct_loss', mean_TYPE_D_word_touch_reconstruct_loss, timestep)
-                writer_word.add_scalar('Z_LOSS/mean_TYPE_D_WC_reconstruct_loss', mean_TYPE_D_word_WC_reconstruct_loss, timestep)
+                writer_word.add_scalar('Loss/mean_TYPE_D_loss',
+                                       mean_TYPE_D_word_termination_loss + mean_TYPE_D_word_loc_reconstruct_loss + mean_TYPE_D_word_touch_reconstruct_loss,
+                                       timestep)
+                writer_word.add_scalar('Z_LOSS/mean_TYPE_D_termination_loss', mean_TYPE_D_word_termination_loss,
+                                       timestep)
+                writer_word.add_scalar('Loss_Loc/mean_TYPE_D_loc_reconstruct_loss',
+                                       mean_TYPE_D_word_loc_reconstruct_loss, timestep)
+                writer_word.add_scalar('Z_LOSS/mean_TYPE_D_touch_reconstruct_loss',
+                                       mean_TYPE_D_word_touch_reconstruct_loss, timestep)
+                writer_word.add_scalar('Z_LOSS/mean_TYPE_D_WC_reconstruct_loss', mean_TYPE_D_word_WC_reconstruct_loss,
+                                       timestep)
 
         if segment_loss:
-            [total_segment_loss, mean_segment_W_consistency_loss, mean_ORIGINAL_segment_termination_loss, mean_ORIGINAL_segment_loc_reconstruct_loss, mean_ORIGINAL_segment_touch_reconstruct_loss, mean_TYPE_A_segment_termination_loss, mean_TYPE_A_segment_loc_reconstruct_loss, mean_TYPE_A_segment_touch_reconstruct_loss, mean_TYPE_B_segment_termination_loss, mean_TYPE_B_segment_loc_reconstruct_loss, mean_TYPE_B_segment_touch_reconstruct_loss, mean_TYPE_A_segment_WC_reconstruct_loss, mean_TYPE_B_segment_WC_reconstruct_loss] = segment_losses
+            [total_segment_loss, mean_segment_W_consistency_loss, mean_ORIGINAL_segment_termination_loss,
+             mean_ORIGINAL_segment_loc_reconstruct_loss, mean_ORIGINAL_segment_touch_reconstruct_loss,
+             mean_TYPE_A_segment_termination_loss, mean_TYPE_A_segment_loc_reconstruct_loss,
+             mean_TYPE_A_segment_touch_reconstruct_loss, mean_TYPE_B_segment_termination_loss,
+             mean_TYPE_B_segment_loc_reconstruct_loss, mean_TYPE_B_segment_touch_reconstruct_loss,
+             mean_TYPE_A_segment_WC_reconstruct_loss, mean_TYPE_B_segment_WC_reconstruct_loss] = segment_losses
             writer_all.add_scalar('ALL/total_segment_loss', total_segment_loss, timestep)
             writer_segment.add_scalar('Loss/mean_W_consistency_loss', mean_segment_W_consistency_loss, timestep)
             if ORIGINAL:
-                writer_segment.add_scalar('Loss/mean_ORIGINAL_loss', mean_ORIGINAL_segment_termination_loss + mean_ORIGINAL_segment_loc_reconstruct_loss + mean_ORIGINAL_segment_touch_reconstruct_loss, timestep)
-                writer_segment.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss', mean_ORIGINAL_segment_termination_loss, timestep)
-                writer_segment.add_scalar('Loss_Loc/mean_ORIGINAL_loc_reconstruct_loss', mean_ORIGINAL_segment_loc_reconstruct_loss, timestep)
-                writer_segment.add_scalar('Z_LOSS/mean_ORIGINAL_touch_reconstruct_loss', mean_ORIGINAL_segment_touch_reconstruct_loss, timestep)
+                writer_segment.add_scalar('Loss/mean_ORIGINAL_loss',
+                                          mean_ORIGINAL_segment_termination_loss + mean_ORIGINAL_segment_loc_reconstruct_loss + mean_ORIGINAL_segment_touch_reconstruct_loss,
+                                          timestep)
+                writer_segment.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss',
+                                          mean_ORIGINAL_segment_termination_loss, timestep)
+                writer_segment.add_scalar('Loss_Loc/mean_ORIGINAL_loc_reconstruct_loss',
+                                          mean_ORIGINAL_segment_loc_reconstruct_loss, timestep)
+                writer_segment.add_scalar('Z_LOSS/mean_ORIGINAL_touch_reconstruct_loss',
+                                          mean_ORIGINAL_segment_touch_reconstruct_loss, timestep)
             if TYPE_A:
-                writer_segment.add_scalar('Loss/mean_TYPE_A_loss', mean_TYPE_A_segment_termination_loss + mean_TYPE_A_segment_loc_reconstruct_loss + mean_TYPE_A_segment_touch_reconstruct_loss, timestep)
-                writer_segment.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss', mean_TYPE_A_segment_termination_loss, timestep)
-                writer_segment.add_scalar('Loss_Loc/mean_TYPE_A_loc_reconstruct_loss', mean_TYPE_A_segment_loc_reconstruct_loss, timestep)
-                writer_segment.add_scalar('Z_LOSS/mean_TYPE_A_touch_reconstruct_loss', mean_TYPE_A_segment_touch_reconstruct_loss, timestep)
-                writer_segment.add_scalar('Z_LOSS/mean_TYPE_A_WC_reconstruct_loss', mean_TYPE_A_segment_WC_reconstruct_loss, timestep)
+                writer_segment.add_scalar('Loss/mean_TYPE_A_loss',
+                                          mean_TYPE_A_segment_termination_loss + mean_TYPE_A_segment_loc_reconstruct_loss + mean_TYPE_A_segment_touch_reconstruct_loss,
+                                          timestep)
+                writer_segment.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss', mean_TYPE_A_segment_termination_loss,
+                                          timestep)
+                writer_segment.add_scalar('Loss_Loc/mean_TYPE_A_loc_reconstruct_loss',
+                                          mean_TYPE_A_segment_loc_reconstruct_loss, timestep)
+                writer_segment.add_scalar('Z_LOSS/mean_TYPE_A_touch_reconstruct_loss',
+                                          mean_TYPE_A_segment_touch_reconstruct_loss, timestep)
+                writer_segment.add_scalar('Z_LOSS/mean_TYPE_A_WC_reconstruct_loss',
+                                          mean_TYPE_A_segment_WC_reconstruct_loss, timestep)
             if TYPE_B:
-                writer_segment.add_scalar('Loss/mean_TYPE_B_loss', mean_TYPE_B_segment_termination_loss + mean_TYPE_B_segment_loc_reconstruct_loss + mean_TYPE_B_segment_touch_reconstruct_loss, timestep)
-                writer_segment.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss', mean_TYPE_B_segment_termination_loss, timestep)
-                writer_segment.add_scalar('Loss_Loc/mean_TYPE_B_loc_reconstruct_loss', mean_TYPE_B_segment_loc_reconstruct_loss, timestep)
-                writer_segment.add_scalar('Z_LOSS/mean_TYPE_B_touch_reconstruct_loss', mean_TYPE_B_segment_touch_reconstruct_loss, timestep)
-                writer_segment.add_scalar('Z_LOSS/mean_TYPE_B_WC_reconstruct_loss', mean_TYPE_B_segment_WC_reconstruct_loss, timestep)
+                writer_segment.add_scalar('Loss/mean_TYPE_B_loss',
+                                          mean_TYPE_B_segment_termination_loss + mean_TYPE_B_segment_loc_reconstruct_loss + mean_TYPE_B_segment_touch_reconstruct_loss,
+                                          timestep)
+                writer_segment.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss', mean_TYPE_B_segment_termination_loss,
+                                          timestep)
+                writer_segment.add_scalar('Loss_Loc/mean_TYPE_B_loc_reconstruct_loss',
+                                          mean_TYPE_B_segment_loc_reconstruct_loss, timestep)
+                writer_segment.add_scalar('Z_LOSS/mean_TYPE_B_touch_reconstruct_loss',
+                                          mean_TYPE_B_segment_touch_reconstruct_loss, timestep)
+                writer_segment.add_scalar('Z_LOSS/mean_TYPE_B_WC_reconstruct_loss',
+                                          mean_TYPE_B_segment_WC_reconstruct_loss, timestep)
 
         total_loss.backward()
 
@@ -253,71 +348,73 @@ def main(params):
         optimizer.step()
 
         if timestep % (num_writer * num_samples * 1) == 0.0:
-            commands_list = net.sample([    batch_word_level_stroke_in, batch_word_level_stroke_out, batch_word_level_stroke_length,
-                                            batch_word_level_term, batch_word_level_char, batch_word_level_char_length, batch_segment_level_stroke_in,
-                                            batch_segment_level_stroke_out, batch_segment_level_stroke_length, batch_segment_level_term,
-                                            batch_segment_level_char, batch_segment_level_char_length])
+            commands_list = net.sample(
+                [batch_word_level_stroke_in, batch_word_level_stroke_out, batch_word_level_stroke_length,
+                 batch_word_level_term, batch_word_level_char, batch_word_level_char_length,
+                 batch_segment_level_stroke_in,
+                 batch_segment_level_stroke_out, batch_segment_level_stroke_length, batch_segment_level_term,
+                 batch_segment_level_char, batch_segment_level_char_length])
             [t_commands, o_commands, a_commands, b_commands, c_commands, d_commands] = commands_list
 
             t_im = Image.fromarray(np.zeros([160, 750]))
             t_dr = ImageDraw.Draw(t_im)
 
             px, py = 30, 100
-            for i, [dx,dy,t] in enumerate(t_commands):
+            for i, [dx, dy, t] in enumerate(t_commands):
                 x = px + dx * 5
                 y = py + dy * 5
                 if t == 0:
-                    t_dr.line((px,py,x,y),255,1)
+                    t_dr.line((px, py, x, y), 255, 1)
                 px, py = x, y
 
             o_im = Image.fromarray(np.zeros([160, 750]))
             o_dr = ImageDraw.Draw(o_im)
             px, py = 30, 100
-            for i, [dx,dy,t] in enumerate(o_commands):
+            for i, [dx, dy, t] in enumerate(o_commands):
                 x = px + dx * 5
                 y = py + dy * 5
                 if t == 0:
-                    o_dr.line((px,py,x,y),255,1)
+                    o_dr.line((px, py, x, y), 255, 1)
                 px, py = x, y
 
             a_im = Image.fromarray(np.zeros([160, 750]))
             a_dr = ImageDraw.Draw(a_im)
             px, py = 30, 100
-            for i, [dx,dy,t] in enumerate(a_commands):
+            for i, [dx, dy, t] in enumerate(a_commands):
                 x = px + dx * 5
                 y = py + dy * 5
                 if t == 0:
-                    a_dr.line((px,py,x,y),255,1)
+                    a_dr.line((px, py, x, y), 255, 1)
                 px, py = x, y
 
             b_im = Image.fromarray(np.zeros([160, 750]))
             b_dr = ImageDraw.Draw(b_im)
             px, py = 30, 100
-            for i, [dx,dy,t] in enumerate(b_commands):
+            for i, [dx, dy, t] in enumerate(b_commands):
                 x = px + dx * 5
                 y = py + dy * 5
                 if t == 0:
-                    b_dr.line((px,py,x,y),255,1)
+                    b_dr.line((px, py, x, y), 255, 1)
                 px, py = x, y
 
             c_im = Image.fromarray(np.zeros([160, 750]))
             c_dr = ImageDraw.Draw(c_im)
             px, py = 30, 100
-            for i, [dx,dy,t] in enumerate(c_commands):
+            for i, [dx, dy, t] in enumerate(c_commands):
                 x = px + dx * 5
                 y = py + dy * 5
                 if t == 0:
-                    c_dr.line((px,py,x,y),255,1)
+                    c_dr.line((px, py, x, y), 255, 1)
                 px, py = x, y
 
             d_im = Image.fromarray(np.zeros([160, 750]))
             d_dr = ImageDraw.Draw(d_im)
             px, py = 30, 100
-            for i, [dx,dy,t] in enumerate(d_commands):
+            for i, [dx, dy, t] in enumerate(d_commands):
                 x = px + dx * 5
                 y = py + dy * 5
                 if t == 0:
-                    d_dr.line((px,py,x,y),255,1)
+                    d_dr.line((px, py, x, y), 255, 1)
                 px, py = x, y
 
             dst = Image.new('RGB', (750, 960))
@@ -330,128 +427,225 @@ def main(params):
             writer_all.add_image('Res/Results', np.asarray(dst.convert("RGB")), timestep, dataformats='HWC')
 
         if VALIDATION:
-            [all_sentence_level_stroke_in, all_sentence_level_stroke_out, all_sentence_level_stroke_length, all_sentence_level_term,
-            all_sentence_level_char, all_sentence_level_char_length, all_word_level_stroke_in, all_word_level_stroke_out,
-            all_word_level_stroke_length, all_word_level_term, all_word_level_char, all_word_level_char_length,
-            all_segment_level_stroke_in, all_segment_level_stroke_out, all_segment_level_stroke_length, all_segment_level_term,
-            all_segment_level_char, all_segment_level_char_length] = dl.next_batch(TYPE='VALID')
+            [all_sentence_level_stroke_in, all_sentence_level_stroke_out, all_sentence_level_stroke_length,
+             all_sentence_level_term,
+             all_sentence_level_char, all_sentence_level_char_length, all_word_level_stroke_in,
+             all_word_level_stroke_out,
+             all_word_level_stroke_length, all_word_level_term, all_word_level_char, all_word_level_char_length,
+             all_segment_level_stroke_in, all_segment_level_stroke_out, all_segment_level_stroke_length,
+             all_segment_level_term,
+             all_segment_level_char, all_segment_level_char_length] = dl.next_batch(TYPE='VALID')
 
-            batch_sentence_level_stroke_in         = [torch.FloatTensor(a).to(device) for a in all_sentence_level_stroke_in]
-            batch_sentence_level_stroke_out     = [torch.FloatTensor(a).to(device) for a in all_sentence_level_stroke_out]
-            batch_sentence_level_stroke_length     = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in all_sentence_level_stroke_length]
-            batch_sentence_level_term             = [torch.FloatTensor(a).to(device) for a in all_sentence_level_term]
-            batch_sentence_level_char             = [torch.LongTensor(a).to(device) for a in all_sentence_level_char]
-            batch_sentence_level_char_length     = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in all_sentence_level_char_length]
-            batch_word_level_stroke_in             = [torch.FloatTensor(a).to(device) for a in all_word_level_stroke_in]
-            batch_word_level_stroke_out         = [torch.FloatTensor(a).to(device) for a in all_word_level_stroke_out]
-            batch_word_level_stroke_length         = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in all_word_level_stroke_length]
-            batch_word_level_term                 = [torch.FloatTensor(a).to(device) for a in all_word_level_term]
-            batch_word_level_char                 = [torch.LongTensor(a).to(device) for a in all_word_level_char]
-            batch_word_level_char_length         = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in all_word_level_char_length]
-            batch_segment_level_stroke_in         = [[torch.FloatTensor(a).to(device) for a in b] for b in all_segment_level_stroke_in]
-            batch_segment_level_stroke_out         = [[torch.FloatTensor(a).to(device) for a in b] for b in all_segment_level_stroke_out]
-            batch_segment_level_stroke_length     = [[torch.LongTensor(a).to(device).unsqueeze(-1) for a in b] for b in all_segment_level_stroke_length]
-            batch_segment_level_term             = [[torch.FloatTensor(a).to(device) for a in b] for b in all_segment_level_term]
-            batch_segment_level_char             = [[torch.LongTensor(a).to(device) for a in b] for b in all_segment_level_char]
-            batch_segment_level_char_length     = [[torch.LongTensor(a).to(device).unsqueeze(-1) for a in b] for b in all_segment_level_char_length]
+            batch_sentence_level_stroke_in = [torch.FloatTensor(a).to(device) for a in all_sentence_level_stroke_in]
+            batch_sentence_level_stroke_out = [torch.FloatTensor(a).to(device) for a in all_sentence_level_stroke_out]
+            batch_sentence_level_stroke_length = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in
+                                                  all_sentence_level_stroke_length]
+            batch_sentence_level_term = [torch.FloatTensor(a).to(device) for a in all_sentence_level_term]
+            batch_sentence_level_char = [torch.LongTensor(a).to(device) for a in all_sentence_level_char]
+            batch_sentence_level_char_length = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in
+                                                all_sentence_level_char_length]
+            batch_word_level_stroke_in = [torch.FloatTensor(a).to(device) for a in all_word_level_stroke_in]
+            batch_word_level_stroke_out = [torch.FloatTensor(a).to(device) for a in all_word_level_stroke_out]
+            batch_word_level_stroke_length = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in
+                                              all_word_level_stroke_length]
+            batch_word_level_term = [torch.FloatTensor(a).to(device) for a in all_word_level_term]
+            batch_word_level_char = [torch.LongTensor(a).to(device) for a in all_word_level_char]
+            batch_word_level_char_length = [torch.LongTensor(a).to(device).unsqueeze(-1) for a in
+                                            all_word_level_char_length]
+            batch_segment_level_stroke_in = [[torch.FloatTensor(a).to(device) for a in b] for b in
+                                             all_segment_level_stroke_in]
+            batch_segment_level_stroke_out = [[torch.FloatTensor(a).to(device) for a in b] for b in
+                                              all_segment_level_stroke_out]
+            batch_segment_level_stroke_length = [[torch.LongTensor(a).to(device).unsqueeze(-1) for a in b] for b in
+                                                 all_segment_level_stroke_length]
+            batch_segment_level_term = [[torch.FloatTensor(a).to(device) for a in b] for b in all_segment_level_term]
+            batch_segment_level_char = [[torch.LongTensor(a).to(device) for a in b] for b in all_segment_level_char]
+            batch_segment_level_char_length = [[torch.LongTensor(a).to(device).unsqueeze(-1) for a in b] for b in
+                                               all_segment_level_char_length]
 
-            res = net([batch_sentence_level_stroke_in, batch_sentence_level_stroke_out, batch_sentence_level_stroke_length,
-                    batch_sentence_level_term, batch_sentence_level_char, batch_sentence_level_char_length,
-                    batch_word_level_stroke_in, batch_word_level_stroke_out, batch_word_level_stroke_length,
-                    batch_word_level_term, batch_word_level_char, batch_word_level_char_length, batch_segment_level_stroke_in,
-                    batch_segment_level_stroke_out, batch_segment_level_stroke_length, batch_segment_level_term,
-                    batch_segment_level_char, batch_segment_level_char_length])
+            res = net(
+                [batch_sentence_level_stroke_in, batch_sentence_level_stroke_out, batch_sentence_level_stroke_length,
+                 batch_sentence_level_term, batch_sentence_level_char, batch_sentence_level_char_length,
+                 batch_word_level_stroke_in, batch_word_level_stroke_out, batch_word_level_stroke_length,
+                 batch_word_level_term, batch_word_level_char, batch_word_level_char_length,
+                 batch_segment_level_stroke_in,
+                 batch_segment_level_stroke_out, batch_segment_level_stroke_length, batch_segment_level_term,
+                 batch_segment_level_char, batch_segment_level_char_length])
 
             total_loss, sentence_losses, word_losses, segment_losses = res
 
             valid_writer_all.add_scalar('ALL/total_loss', total_loss, timestep)
 
             if sentence_loss:
-                [total_sentence_loss, mean_sentence_W_consistency_loss, mean_ORIGINAL_sentence_termination_loss, mean_ORIGINAL_sentence_loc_reconstruct_loss, mean_ORIGINAL_sentence_touch_reconstruct_loss, mean_TYPE_A_sentence_termination_loss, mean_TYPE_A_sentence_loc_reconstruct_loss, mean_TYPE_A_sentence_touch_reconstruct_loss, mean_TYPE_B_sentence_termination_loss, mean_TYPE_B_sentence_loc_reconstruct_loss, mean_TYPE_B_sentence_touch_reconstruct_loss, mean_TYPE_A_sentence_WC_reconstruct_loss, mean_TYPE_B_sentence_WC_reconstruct_loss] = sentence_losses
+                [total_sentence_loss, mean_sentence_W_consistency_loss, mean_ORIGINAL_sentence_termination_loss,
+                 mean_ORIGINAL_sentence_loc_reconstruct_loss, mean_ORIGINAL_sentence_touch_reconstruct_loss,
+                 mean_TYPE_A_sentence_termination_loss, mean_TYPE_A_sentence_loc_reconstruct_loss,
+                 mean_TYPE_A_sentence_touch_reconstruct_loss, mean_TYPE_B_sentence_termination_loss,
+                 mean_TYPE_B_sentence_loc_reconstruct_loss, mean_TYPE_B_sentence_touch_reconstruct_loss,
+                 mean_TYPE_A_sentence_WC_reconstruct_loss, mean_TYPE_B_sentence_WC_reconstruct_loss] = sentence_losses
 
                 valid_writer_all.add_scalar('ALL/total_sentence_loss', total_sentence_loss, timestep)
-                valid_writer_sentence.add_scalar('Loss/mean_W_consistency_loss', mean_sentence_W_consistency_loss, timestep)
+                valid_writer_sentence.add_scalar('Loss/mean_W_consistency_loss', mean_sentence_W_consistency_loss,
+                                                 timestep)
                 if ORIGINAL:
-                    valid_writer_sentence.add_scalar('Loss/mean_ORIGINAL_loss', mean_ORIGINAL_sentence_termination_loss + mean_ORIGINAL_sentence_loc_reconstruct_loss + mean_ORIGINAL_sentence_touch_reconstruct_loss, timestep)
-                    valid_writer_sentence.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss', mean_ORIGINAL_sentence_termination_loss, timestep)
-                    valid_writer_sentence.add_scalar('Loss_Loc/mean_ORIGINAL_loc_reconstruct_loss', mean_ORIGINAL_sentence_loc_reconstruct_loss, timestep)
-                    valid_writer_sentence.add_scalar('Z_LOSS/mean_ORIGINAL_touch_reconstruct_loss', mean_ORIGINAL_sentence_touch_reconstruct_loss, timestep)
+                    valid_writer_sentence.add_scalar('Loss/mean_ORIGINAL_loss',
+                                                     mean_ORIGINAL_sentence_termination_loss + mean_ORIGINAL_sentence_loc_reconstruct_loss + mean_ORIGINAL_sentence_touch_reconstruct_loss,
+                                                     timestep)
+                    valid_writer_sentence.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss',
+                                                     mean_ORIGINAL_sentence_termination_loss, timestep)
+                    valid_writer_sentence.add_scalar('Loss_Loc/mean_ORIGINAL_loc_reconstruct_loss',
+                                                     mean_ORIGINAL_sentence_loc_reconstruct_loss, timestep)
+                    valid_writer_sentence.add_scalar('Z_LOSS/mean_ORIGINAL_touch_reconstruct_loss',
+                                                     mean_ORIGINAL_sentence_touch_reconstruct_loss, timestep)
                 if TYPE_A:
-                    valid_writer_sentence.add_scalar('Loss/mean_TYPE_A_loss', mean_TYPE_A_sentence_termination_loss + mean_TYPE_A_sentence_loc_reconstruct_loss + mean_TYPE_A_sentence_touch_reconstruct_loss, timestep)
-                    valid_writer_sentence.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss', mean_TYPE_A_sentence_termination_loss, timestep)
-                    valid_writer_sentence.add_scalar('Loss_Loc/mean_TYPE_A_loc_reconstruct_loss', mean_TYPE_A_sentence_loc_reconstruct_loss, timestep)
-                    valid_writer_sentence.add_scalar('Z_LOSS/mean_TYPE_A_touch_reconstruct_loss', mean_TYPE_A_sentence_touch_reconstruct_loss, timestep)
-                    valid_writer_sentence.add_scalar('Z_LOSS/mean_TYPE_A_WC_reconstruct_loss', mean_TYPE_A_sentence_WC_reconstruct_loss, timestep)
+                    valid_writer_sentence.add_scalar('Loss/mean_TYPE_A_loss',
+                                                     mean_TYPE_A_sentence_termination_loss + mean_TYPE_A_sentence_loc_reconstruct_loss + mean_TYPE_A_sentence_touch_reconstruct_loss,
+                                                     timestep)
+                    valid_writer_sentence.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss',
+                                                     mean_TYPE_A_sentence_termination_loss, timestep)
+                    valid_writer_sentence.add_scalar('Loss_Loc/mean_TYPE_A_loc_reconstruct_loss',
+                                                     mean_TYPE_A_sentence_loc_reconstruct_loss, timestep)
+                    valid_writer_sentence.add_scalar('Z_LOSS/mean_TYPE_A_touch_reconstruct_loss',
+                                                     mean_TYPE_A_sentence_touch_reconstruct_loss, timestep)
+                    valid_writer_sentence.add_scalar('Z_LOSS/mean_TYPE_A_WC_reconstruct_loss',
+                                                     mean_TYPE_A_sentence_WC_reconstruct_loss, timestep)
                 if TYPE_B:
-                    valid_writer_sentence.add_scalar('Loss/mean_TYPE_B_loss', mean_TYPE_B_sentence_termination_loss + mean_TYPE_B_sentence_loc_reconstruct_loss + mean_TYPE_B_sentence_touch_reconstruct_loss, timestep)
-                    valid_writer_sentence.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss', mean_TYPE_B_sentence_termination_loss, timestep)
-                    valid_writer_sentence.add_scalar('Loss_Loc/mean_TYPE_B_loc_reconstruct_loss', mean_TYPE_B_sentence_loc_reconstruct_loss, timestep)
-                    valid_writer_sentence.add_scalar('Z_LOSS/mean_TYPE_B_touch_reconstruct_loss', mean_TYPE_B_sentence_touch_reconstruct_loss, timestep)
-                    valid_writer_sentence.add_scalar('Z_LOSS/mean_TYPE_B_WC_reconstruct_loss', mean_TYPE_B_sentence_WC_reconstruct_loss, timestep)
+                    valid_writer_sentence.add_scalar('Loss/mean_TYPE_B_loss',
+                                                     mean_TYPE_B_sentence_termination_loss + mean_TYPE_B_sentence_loc_reconstruct_loss + mean_TYPE_B_sentence_touch_reconstruct_loss,
+                                                     timestep)
+                    valid_writer_sentence.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss',
+                                                     mean_TYPE_B_sentence_termination_loss, timestep)
+                    valid_writer_sentence.add_scalar('Loss_Loc/mean_TYPE_B_loc_reconstruct_loss',
+                                                     mean_TYPE_B_sentence_loc_reconstruct_loss, timestep)
+                    valid_writer_sentence.add_scalar('Z_LOSS/mean_TYPE_B_touch_reconstruct_loss',
+                                                     mean_TYPE_B_sentence_touch_reconstruct_loss, timestep)
+                    valid_writer_sentence.add_scalar('Z_LOSS/mean_TYPE_B_WC_reconstruct_loss',
+                                                     mean_TYPE_B_sentence_WC_reconstruct_loss, timestep)
 
             if word_loss:
-                [total_word_loss, mean_word_W_consistency_loss, mean_ORIGINAL_word_termination_loss, mean_ORIGINAL_word_loc_reconstruct_loss, mean_ORIGINAL_word_touch_reconstruct_loss, mean_TYPE_A_word_termination_loss, mean_TYPE_A_word_loc_reconstruct_loss, mean_TYPE_A_word_touch_reconstruct_loss, mean_TYPE_B_word_termination_loss, mean_TYPE_B_word_loc_reconstruct_loss, mean_TYPE_B_word_touch_reconstruct_loss, mean_TYPE_C_word_termination_loss, mean_TYPE_C_word_loc_reconstruct_loss, mean_TYPE_C_word_touch_reconstruct_loss, mean_TYPE_D_word_termination_loss, mean_TYPE_D_word_loc_reconstruct_loss, mean_TYPE_D_word_touch_reconstruct_loss, mean_TYPE_A_word_WC_reconstruct_loss, mean_TYPE_B_word_WC_reconstruct_loss, mean_TYPE_C_word_WC_reconstruct_loss, mean_TYPE_D_word_WC_reconstruct_loss] = word_losses
+                [total_word_loss, mean_word_W_consistency_loss, mean_ORIGINAL_word_termination_loss,
+                 mean_ORIGINAL_word_loc_reconstruct_loss, mean_ORIGINAL_word_touch_reconstruct_loss,
+                 mean_TYPE_A_word_termination_loss, mean_TYPE_A_word_loc_reconstruct_loss,
+                 mean_TYPE_A_word_touch_reconstruct_loss, mean_TYPE_B_word_termination_loss,
+                 mean_TYPE_B_word_loc_reconstruct_loss, mean_TYPE_B_word_touch_reconstruct_loss,
+                 mean_TYPE_C_word_termination_loss, mean_TYPE_C_word_loc_reconstruct_loss,
+                 mean_TYPE_C_word_touch_reconstruct_loss, mean_TYPE_D_word_termination_loss,
+                 mean_TYPE_D_word_loc_reconstruct_loss, mean_TYPE_D_word_touch_reconstruct_loss,
+                 mean_TYPE_A_word_WC_reconstruct_loss, mean_TYPE_B_word_WC_reconstruct_loss,
+                 mean_TYPE_C_word_WC_reconstruct_loss, mean_TYPE_D_word_WC_reconstruct_loss] = word_losses
                 valid_writer_all.add_scalar('ALL/total_word_loss', total_word_loss, timestep)
                 valid_writer_word.add_scalar('Loss/mean_W_consistency_loss', mean_word_W_consistency_loss, timestep)
 
                 if ORIGINAL:
-                    valid_writer_word.add_scalar('Loss/mean_ORIGINAL_loss', mean_ORIGINAL_word_termination_loss + mean_ORIGINAL_word_loc_reconstruct_loss + mean_ORIGINAL_word_touch_reconstruct_loss, timestep)
-                    valid_writer_word.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss', mean_ORIGINAL_word_termination_loss, timestep)
-                    valid_writer_word.add_scalar('Loss_Loc/mean_ORIGINAL_loc_reconstruct_loss', mean_ORIGINAL_word_loc_reconstruct_loss, timestep)
-                    valid_writer_word.add_scalar('Z_LOSS/mean_ORIGINAL_touch_reconstruct_loss', mean_ORIGINAL_word_touch_reconstruct_loss, timestep)
+                    valid_writer_word.add_scalar('Loss/mean_ORIGINAL_loss',
+                                                 mean_ORIGINAL_word_termination_loss + mean_ORIGINAL_word_loc_reconstruct_loss + mean_ORIGINAL_word_touch_reconstruct_loss,
+                                                 timestep)
+                    valid_writer_word.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss',
+                                                 mean_ORIGINAL_word_termination_loss, timestep)
+                    valid_writer_word.add_scalar('Loss_Loc/mean_ORIGINAL_loc_reconstruct_loss',
+                                                 mean_ORIGINAL_word_loc_reconstruct_loss, timestep)
+                    valid_writer_word.add_scalar('Z_LOSS/mean_ORIGINAL_touch_reconstruct_loss',
+                                                 mean_ORIGINAL_word_touch_reconstruct_loss, timestep)
                 if TYPE_A:
-                    valid_writer_word.add_scalar('Loss/mean_TYPE_A_loss', mean_TYPE_A_word_termination_loss + mean_TYPE_A_word_loc_reconstruct_loss + mean_TYPE_A_word_touch_reconstruct_loss, timestep)
-                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss', mean_TYPE_A_word_termination_loss, timestep)
-                    valid_writer_word.add_scalar('Loss_Loc/mean_TYPE_A_loc_reconstruct_loss', mean_TYPE_A_word_loc_reconstruct_loss, timestep)
-                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_A_touch_reconstruct_loss', mean_TYPE_A_word_touch_reconstruct_loss, timestep)
-                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_A_WC_reconstruct_loss', mean_TYPE_A_word_WC_reconstruct_loss, timestep)
+                    valid_writer_word.add_scalar('Loss/mean_TYPE_A_loss',
+                                                 mean_TYPE_A_word_termination_loss + mean_TYPE_A_word_loc_reconstruct_loss + mean_TYPE_A_word_touch_reconstruct_loss,
+                                                 timestep)
+                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss',
+                                                 mean_TYPE_A_word_termination_loss, timestep)
+                    valid_writer_word.add_scalar('Loss_Loc/mean_TYPE_A_loc_reconstruct_loss',
+                                                 mean_TYPE_A_word_loc_reconstruct_loss, timestep)
+                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_A_touch_reconstruct_loss',
+                                                 mean_TYPE_A_word_touch_reconstruct_loss, timestep)
+                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_A_WC_reconstruct_loss',
+                                                 mean_TYPE_A_word_WC_reconstruct_loss, timestep)
                 if TYPE_B:
-                    valid_writer_word.add_scalar('Loss/mean_TYPE_B_loss', mean_TYPE_B_word_termination_loss + mean_TYPE_B_word_loc_reconstruct_loss + mean_TYPE_B_word_touch_reconstruct_loss, timestep)
-                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss', mean_TYPE_B_word_termination_loss, timestep)
-                    valid_writer_word.add_scalar('Loss_Loc/mean_TYPE_B_loc_reconstruct_loss', mean_TYPE_B_word_loc_reconstruct_loss, timestep)
-                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_B_touch_reconstruct_loss', mean_TYPE_B_word_touch_reconstruct_loss, timestep)
-                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_B_WC_reconstruct_loss', mean_TYPE_B_word_WC_reconstruct_loss, timestep)
+                    valid_writer_word.add_scalar('Loss/mean_TYPE_B_loss',
+                                                 mean_TYPE_B_word_termination_loss + mean_TYPE_B_word_loc_reconstruct_loss + mean_TYPE_B_word_touch_reconstruct_loss,
+                                                 timestep)
+                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss',
+                                                 mean_TYPE_B_word_termination_loss, timestep)
+                    valid_writer_word.add_scalar('Loss_Loc/mean_TYPE_B_loc_reconstruct_loss',
+                                                 mean_TYPE_B_word_loc_reconstruct_loss, timestep)
+                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_B_touch_reconstruct_loss',
+                                                 mean_TYPE_B_word_touch_reconstruct_loss, timestep)
+                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_B_WC_reconstruct_loss',
+                                                 mean_TYPE_B_word_WC_reconstruct_loss, timestep)
                 if TYPE_C:
-                    valid_writer_word.add_scalar('Loss/mean_TYPE_C_loss', mean_TYPE_C_word_termination_loss + mean_TYPE_C_word_loc_reconstruct_loss + mean_TYPE_C_word_touch_reconstruct_loss, timestep)
-                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_C_termination_loss', mean_TYPE_C_word_termination_loss, timestep)
-                    valid_writer_word.add_scalar('Loss_Loc/mean_TYPE_C_loc_reconstruct_loss', mean_TYPE_C_word_loc_reconstruct_loss, timestep)
-                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_C_touch_reconstruct_loss', mean_TYPE_C_word_touch_reconstruct_loss, timestep)
-                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_C_WC_reconstruct_loss', mean_TYPE_C_word_WC_reconstruct_loss, timestep)
+                    valid_writer_word.add_scalar('Loss/mean_TYPE_C_loss',
+                                                 mean_TYPE_C_word_termination_loss + mean_TYPE_C_word_loc_reconstruct_loss + mean_TYPE_C_word_touch_reconstruct_loss,
+                                                 timestep)
+                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_C_termination_loss',
+                                                 mean_TYPE_C_word_termination_loss, timestep)
+                    valid_writer_word.add_scalar('Loss_Loc/mean_TYPE_C_loc_reconstruct_loss',
+                                                 mean_TYPE_C_word_loc_reconstruct_loss, timestep)
+                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_C_touch_reconstruct_loss',
+                                                 mean_TYPE_C_word_touch_reconstruct_loss, timestep)
+                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_C_WC_reconstruct_loss',
+                                                 mean_TYPE_C_word_WC_reconstruct_loss, timestep)
                 if TYPE_D:
-                    valid_writer_word.add_scalar('Loss/mean_TYPE_D_loss', mean_TYPE_D_word_termination_loss + mean_TYPE_D_word_loc_reconstruct_loss + mean_TYPE_D_word_touch_reconstruct_loss, timestep)
-                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_D_termination_loss', mean_TYPE_D_word_termination_loss, timestep)
-                    valid_writer_word.add_scalar('Loss_Loc/mean_TYPE_D_loc_reconstruct_loss', mean_TYPE_D_word_loc_reconstruct_loss, timestep)
-                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_D_touch_reconstruct_loss', mean_TYPE_D_word_touch_reconstruct_loss, timestep)
-                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_D_WC_reconstruct_loss', mean_TYPE_D_word_WC_reconstruct_loss, timestep)
+                    valid_writer_word.add_scalar('Loss/mean_TYPE_D_loss',
+                                                 mean_TYPE_D_word_termination_loss + mean_TYPE_D_word_loc_reconstruct_loss + mean_TYPE_D_word_touch_reconstruct_loss,
+                                                 timestep)
+                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_D_termination_loss',
+                                                 mean_TYPE_D_word_termination_loss, timestep)
+                    valid_writer_word.add_scalar('Loss_Loc/mean_TYPE_D_loc_reconstruct_loss',
+                                                 mean_TYPE_D_word_loc_reconstruct_loss, timestep)
+                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_D_touch_reconstruct_loss',
+                                                 mean_TYPE_D_word_touch_reconstruct_loss, timestep)
+                    valid_writer_word.add_scalar('Z_LOSS/mean_TYPE_D_WC_reconstruct_loss',
+                                                 mean_TYPE_D_word_WC_reconstruct_loss, timestep)
 
             if segment_loss:
-                [total_segment_loss, mean_segment_W_consistency_loss, mean_ORIGINAL_segment_termination_loss, mean_ORIGINAL_segment_loc_reconstruct_loss, mean_ORIGINAL_segment_touch_reconstruct_loss, mean_TYPE_A_segment_termination_loss, mean_TYPE_A_segment_loc_reconstruct_loss, mean_TYPE_A_segment_touch_reconstruct_loss, mean_TYPE_B_segment_termination_loss, mean_TYPE_B_segment_loc_reconstruct_loss, mean_TYPE_B_segment_touch_reconstruct_loss, mean_TYPE_A_segment_WC_reconstruct_loss, mean_TYPE_B_segment_WC_reconstruct_loss] = segment_losses
+                [total_segment_loss, mean_segment_W_consistency_loss, mean_ORIGINAL_segment_termination_loss,
+                 mean_ORIGINAL_segment_loc_reconstruct_loss, mean_ORIGINAL_segment_touch_reconstruct_loss,
+                 mean_TYPE_A_segment_termination_loss, mean_TYPE_A_segment_loc_reconstruct_loss,
+                 mean_TYPE_A_segment_touch_reconstruct_loss, mean_TYPE_B_segment_termination_loss,
+                 mean_TYPE_B_segment_loc_reconstruct_loss, mean_TYPE_B_segment_touch_reconstruct_loss,
+                 mean_TYPE_A_segment_WC_reconstruct_loss, mean_TYPE_B_segment_WC_reconstruct_loss] = segment_losses
                 valid_writer_all.add_scalar('ALL/total_segment_loss', total_segment_loss, timestep)
-                valid_writer_segment.add_scalar('Loss/mean_W_consistency_loss', mean_segment_W_consistency_loss, timestep)
+                valid_writer_segment.add_scalar('Loss/mean_W_consistency_loss', mean_segment_W_consistency_loss,
+                                                timestep)
                 if ORIGINAL:
-                    valid_writer_segment.add_scalar('Loss/mean_ORIGINAL_loss', mean_ORIGINAL_segment_termination_loss + mean_ORIGINAL_segment_loc_reconstruct_loss + mean_ORIGINAL_segment_touch_reconstruct_loss, timestep)
-                    valid_writer_segment.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss', mean_ORIGINAL_segment_termination_loss, timestep)
-                    valid_writer_segment.add_scalar('Loss_Loc/mean_ORIGINAL_loc_reconstruct_loss', mean_ORIGINAL_segment_loc_reconstruct_loss, timestep)
-                    valid_writer_segment.add_scalar('Z_LOSS/mean_ORIGINAL_touch_reconstruct_loss', mean_ORIGINAL_segment_touch_reconstruct_loss, timestep)
+                    valid_writer_segment.add_scalar('Loss/mean_ORIGINAL_loss',
+                                                    mean_ORIGINAL_segment_termination_loss + mean_ORIGINAL_segment_loc_reconstruct_loss + mean_ORIGINAL_segment_touch_reconstruct_loss,
+                                                    timestep)
+                    valid_writer_segment.add_scalar('Z_LOSS/mean_ORIGINAL_termination_loss',
+                                                    mean_ORIGINAL_segment_termination_loss, timestep)
+                    valid_writer_segment.add_scalar('Loss_Loc/mean_ORIGINAL_loc_reconstruct_loss',
+                                                    mean_ORIGINAL_segment_loc_reconstruct_loss, timestep)
+                    valid_writer_segment.add_scalar('Z_LOSS/mean_ORIGINAL_touch_reconstruct_loss',
+                                                    mean_ORIGINAL_segment_touch_reconstruct_loss, timestep)
                 if TYPE_A:
-                    valid_writer_segment.add_scalar('Loss/mean_TYPE_A_loss', mean_TYPE_A_segment_termination_loss + mean_TYPE_A_segment_loc_reconstruct_loss + mean_TYPE_A_segment_touch_reconstruct_loss, timestep)
-                    valid_writer_segment.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss', mean_TYPE_A_segment_termination_loss, timestep)
-                    valid_writer_segment.add_scalar('Loss_Loc/mean_TYPE_A_loc_reconstruct_loss', mean_TYPE_A_segment_loc_reconstruct_loss, timestep)
-                    valid_writer_segment.add_scalar('Z_LOSS/mean_TYPE_A_touch_reconstruct_loss', mean_TYPE_A_segment_touch_reconstruct_loss, timestep)
-                    valid_writer_segment.add_scalar('Z_LOSS/mean_TYPE_A_WC_reconstruct_loss', mean_TYPE_A_segment_WC_reconstruct_loss, timestep)
+                    valid_writer_segment.add_scalar('Loss/mean_TYPE_A_loss',
+                                                    mean_TYPE_A_segment_termination_loss + mean_TYPE_A_segment_loc_reconstruct_loss + mean_TYPE_A_segment_touch_reconstruct_loss,
+                                                    timestep)
+                    valid_writer_segment.add_scalar('Z_LOSS/mean_TYPE_A_termination_loss',
+                                                    mean_TYPE_A_segment_termination_loss, timestep)
+                    valid_writer_segment.add_scalar('Loss_Loc/mean_TYPE_A_loc_reconstruct_loss',
+                                                    mean_TYPE_A_segment_loc_reconstruct_loss, timestep)
+                    valid_writer_segment.add_scalar('Z_LOSS/mean_TYPE_A_touch_reconstruct_loss',
+                                                    mean_TYPE_A_segment_touch_reconstruct_loss, timestep)
+                    valid_writer_segment.add_scalar('Z_LOSS/mean_TYPE_A_WC_reconstruct_loss',
+                                                    mean_TYPE_A_segment_WC_reconstruct_loss, timestep)
                 if TYPE_B:
-                    valid_writer_segment.add_scalar('Loss/mean_TYPE_B_loss', mean_TYPE_B_segment_termination_loss + mean_TYPE_B_segment_loc_reconstruct_loss + mean_TYPE_B_segment_touch_reconstruct_loss, timestep)
-                    valid_writer_segment.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss', mean_TYPE_B_segment_termination_loss, timestep)
-                    valid_writer_segment.add_scalar('Loss_Loc/mean_TYPE_B_loc_reconstruct_loss', mean_TYPE_B_segment_loc_reconstruct_loss, timestep)
-                    valid_writer_segment.add_scalar('Z_LOSS/mean_TYPE_B_touch_reconstruct_loss', mean_TYPE_B_segment_touch_reconstruct_loss, timestep)
-                    valid_writer_segment.add_scalar('Z_LOSS/mean_TYPE_B_WC_reconstruct_loss', mean_TYPE_B_segment_WC_reconstruct_loss, timestep)
+                    valid_writer_segment.add_scalar('Loss/mean_TYPE_B_loss',
+                                                    mean_TYPE_B_segment_termination_loss + mean_TYPE_B_segment_loc_reconstruct_loss + mean_TYPE_B_segment_touch_reconstruct_loss,
+                                                    timestep)
+                    valid_writer_segment.add_scalar('Z_LOSS/mean_TYPE_B_termination_loss',
+                                                    mean_TYPE_B_segment_termination_loss, timestep)
+                    valid_writer_segment.add_scalar('Loss_Loc/mean_TYPE_B_loc_reconstruct_loss',
+                                                    mean_TYPE_B_segment_loc_reconstruct_loss, timestep)
+                    valid_writer_segment.add_scalar('Z_LOSS/mean_TYPE_B_touch_reconstruct_loss',
+                                                    mean_TYPE_B_segment_touch_reconstruct_loss, timestep)
+                    valid_writer_segment.add_scalar('Z_LOSS/mean_TYPE_B_WC_reconstruct_loss',
+                                                    mean_TYPE_B_segment_WC_reconstruct_loss, timestep)
 
         if timestep % (num_writer * num_samples * 1000) == 0.0:
             torch.save({'timestep': timestep,
-            'model_state_dict': net.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': total_loss.item(),
-            }, 'model/'+str(timestep)+'.pt')
+                        'model_state_dict': net.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'loss': total_loss.item(),
+                        }, 'model/' + str(timestep) + '.pt')
 
     writer.close()
 
@@ -483,4 +677,3 @@ if __name__ == '__main__':
     parser.add_argument('--CHECKPOINT', type=int, default=0)
 
     main(parser.parse_args())
-

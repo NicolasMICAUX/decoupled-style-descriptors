@@ -1,11 +1,14 @@
-from config.GlobalVariables import *
 import math
-import torch
-from scipy import stats
-import numpy as np
-from PIL import Image, ImageDraw
 import os
 import pickle
+
+import numpy as np
+import torch
+from PIL import Image, ImageDraw
+from scipy import stats
+
+from config.GlobalVariables import *
+
 
 def preprocess_dataset(data_dir, resample=20, pred_start=1):
     def reformat_raw_data(raw_data, pred_start):
@@ -17,8 +20,8 @@ def preprocess_dataset(data_dir, resample=20, pred_start=1):
         else:
             tmp = np.concatenate([raw_data[0:1], raw_data])
             tmp = tmp[1:] - tmp[:-1]
-            tmp[0,2] = 0
-            tmp[1:,2] = raw_data[:-1, 2]
+            tmp[0, 2] = 0
+            tmp[1:, 2] = raw_data[:-1, 2]
         return tmp[:-1], tmp[1:]
 
     prohibits = [f'./BRUSH/5/118_resample{resample}', f'./BRUSH/7/14_resample{resample}',
@@ -88,7 +91,8 @@ def preprocess_dataset(data_dir, resample=20, pred_start=1):
                         character_raw_points = raw_points[character_labels[:, i] > 0]
                         character_raw_points[:, 0] -= character_raw_points[0, 0]
                         character_level_raw_stroke.append(character_raw_points)
-                        character_stroke_in, character_stroke_out = reformat_raw_data(character_raw_points, pred_start=pred_start)
+                        character_stroke_in, character_stroke_out = reformat_raw_data(character_raw_points,
+                                                                                      pred_start=pred_start)
                         character_level_stroke_in.append(character_stroke_in)
                         character_level_stroke_out.append(character_stroke_out)
                         term = np.zeros([len(character_raw_points)])
