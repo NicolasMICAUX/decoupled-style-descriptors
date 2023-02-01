@@ -21,3 +21,4 @@ dsd_env/
 loss_graphs/
 model_old/*
 *.svg
+/data/
